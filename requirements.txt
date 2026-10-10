@@ -4,3 +4,4 @@ langchain-groq==0.1.9
 langchain-core==0.2.43
 pydantic==2.7.4
 pydantic-core==2.18.4
+supabase

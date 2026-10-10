@@ -2,6 +2,8 @@
 ChurnSignal — FastAPI Backend
 AI Customer Health & Churn Prevention Copilot
 Arvind Sekar | Capstone Project
+
+v2: Live Supabase data + LangChain Tool Calling
 """
 
 from fastapi import FastAPI
@@ -9,8 +11,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 import os
+import json
 
-app = FastAPI(title="ChurnSignal API", version="1.0.0")
+app = FastAPI(title="ChurnSignal API", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -19,60 +22,124 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── ACCOUNTS DATA ─────────────────────────────────────────────────────────────
-ACCOUNTS = {
-    "globalbank": {
-        "id": "globalbank",
-        "name": "GlobalBank",
-        "domain": "globalbank.com",
-        "industry": "Financial Services",
-        "plan": "Starter",
-        "arr": 50000,
-        "users": 2000,
-        "open_tickets": 156,
-        "usage_drop_pct": 60,
-        "nps_score": 4,
-        "days_since_login": 12,
-        "csm": "Arvind Sekar",
-        "renewal_date": "2027-03-31",
-        "logo_initial": "GB",
-        "health_trend": "declining",
-    },
-    "techflow": {
-        "id": "techflow",
-        "name": "TechFlow",
-        "domain": "techflow.io",
-        "industry": "SaaS / Tech",
-        "plan": "Pro",
-        "arr": 9000,
-        "users": 200,
-        "open_tickets": 12,
-        "usage_drop_pct": 5,
-        "nps_score": 9,
-        "days_since_login": 1,
-        "csm": "Arvind Sekar",
-        "renewal_date": "2027-06-30",
-        "logo_initial": "TF",
-        "health_trend": "stable",
-    },
-    "acmecorp": {
-        "id": "acmecorp",
-        "name": "Acme Corp",
-        "domain": "acmecorp.com",
-        "industry": "Banking",
-        "plan": "Starter",
-        "arr": 12500,
-        "users": 500,
-        "open_tickets": 47,
-        "usage_drop_pct": 25,
-        "nps_score": 6,
-        "days_since_login": 7,
-        "csm": "Arvind Sekar",
-        "renewal_date": "2026-12-31",
-        "logo_initial": "AC",
-        "health_trend": "at risk",
-    },
-}
+# ── SUPABASE CLIENT ────────────────────────────────────────────────────────────
+
+def get_supabase():
+    from supabase import create_client
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_KEY")
+    return create_client(url, key)
+
+
+# ── LANGCHAIN TOOLS ────────────────────────────────────────────────────────────
+
+from langchain_core.tools import tool
+
+@tool
+def get_account_info(account_id: str) -> str:
+    """Get core CRM data for an account: health score, MRR, ARR, last login, open tickets, CSM owner, industry, tier, contract end date."""
+    try:
+        sb = get_supabase()
+        res = sb.table("accounts").select("*").eq("id", account_id.lower()).execute()
+        if not res.data:
+            return f"No account found with id '{account_id}'. Available: globalbank, techstartup, retailco"
+        return json.dumps(res.data[0])
+    except Exception as e:
+        return f"Error fetching account info: {e}"
+
+
+@tool
+def get_open_tickets(account_id: str) -> str:
+    """Get all open support tickets for an account including title, priority and how many days ago they were created."""
+    try:
+        sb = get_supabase()
+        res = sb.table("tickets").select("*").eq("account_id", account_id.lower()).eq("status", "open").execute()
+        if not res.data:
+            return f"No open tickets found for '{account_id}'"
+        return json.dumps(res.data)
+    except Exception as e:
+        return f"Error fetching tickets: {e}"
+
+
+@tool
+def get_interaction_history(account_id: str) -> str:
+    """Get recent interaction history for an account: calls, emails, QBRs — including summaries and next touchpoint timing."""
+    try:
+        sb = get_supabase()
+        res = sb.table("interactions").select("*").eq("account_id", account_id.lower()).order("days_ago").execute()
+        if not res.data:
+            return f"No interactions found for '{account_id}'"
+        return json.dumps(res.data)
+    except Exception as e:
+        return f"Error fetching interactions: {e}"
+
+
+@tool
+def get_health_trend(account_id: str) -> str:
+    """Get the 8-week health score trend for an account to identify if health is improving, declining or stable."""
+    try:
+        sb = get_supabase()
+        res = sb.table("health_signals").select("*").eq("account_id", account_id.lower()).order("week_number").execute()
+        if not res.data:
+            return f"No health trend data found for '{account_id}'"
+        return json.dumps(res.data)
+    except Exception as e:
+        return f"Error fetching health trend: {e}"
+
+
+@tool
+def get_feature_usage(account_id: str) -> str:
+    """Get feature adoption data for an account: which features are used daily/weekly/never and adoption scores."""
+    try:
+        sb = get_supabase()
+        res = sb.table("feature_usage").select("*").eq("account_id", account_id.lower()).execute()
+        if not res.data:
+            return f"No feature usage data found for '{account_id}'"
+        return json.dumps(res.data)
+    except Exception as e:
+        return f"Error fetching feature usage: {e}"
+
+
+@tool
+def get_renewal_info(account_id: str) -> str:
+    """Get renewal and commercial data for an account: renewal date, renewal probability, discount applied, upsell opportunity and value."""
+    try:
+        sb = get_supabase()
+        res = sb.table("renewals").select("*").eq("account_id", account_id.lower()).execute()
+        if not res.data:
+            return f"No renewal data found for '{account_id}'"
+        return json.dumps(res.data[0])
+    except Exception as e:
+        return f"Error fetching renewal info: {e}"
+
+
+@tool
+def list_all_accounts() -> str:
+    """List all accounts in the portfolio with their core health metrics for portfolio-level overview queries."""
+    try:
+        sb = get_supabase()
+        res = sb.table("accounts").select("*").execute()
+        if not res.data:
+            return "No accounts found"
+        return json.dumps(res.data)
+    except Exception as e:
+        return f"Error listing accounts: {e}"
+
+
+TOOLS = [
+    get_account_info,
+    get_open_tickets,
+    get_interaction_history,
+    get_health_trend,
+    get_feature_usage,
+    get_renewal_info,
+    list_all_accounts,
+]
+
+TOOL_MAP = {t.name: t for t in TOOLS}
+
+
+# ── PLAYBOOKS ─────────────────────────────────────────────────────────────────
 
 PLAYBOOKS = """
 CRITICAL RISK PLAYBOOK — High Ticket Volume + Low Engagement:
@@ -103,7 +170,7 @@ QBR PREPARATION GUIDE:
 - Joint success plan with 3 specific commitments on both sides
 
 ESCALATION CRITERIA:
-- CRITICAL risk + contract value ≥ $50K → VP Customer Success within 24 hours
+- CRITICAL risk + contract value >= $50K → VP Customer Success within 24 hours
 - Competitor mentioned in ticket or call → Immediate Retention Team involvement
 - Renewal within 60 days + HIGH or CRITICAL risk → Involve Account Executive
 - No login for >14 days + any risk level → CSM outreach required same day
@@ -120,123 +187,18 @@ LOW RISK PLAYBOOK:
 - Consider for reference customer or case study program
 """
 
-
-def compute_risk(acc: dict) -> str:
-    if acc["usage_drop_pct"] > 50 or acc["open_tickets"] > 100 or acc["nps_score"] < 5:
-        return "CRITICAL"
-    elif acc["usage_drop_pct"] > 25 or acc["open_tickets"] > 30 or acc["nps_score"] < 7:
-        return "HIGH"
-    elif acc["usage_drop_pct"] > 10 or acc["open_tickets"] > 10 or acc["nps_score"] < 8:
-        return "MEDIUM"
-    return "LOW"
-
-
-# ── ROUTES ─────────────────────────────────────────────────────────────────────
-
-@app.get("/api/health")
-def health():
-    return {"status": "ok", "service": "ChurnSignal API"}
-
-
-@app.get("/api/accounts")
-def list_accounts():
-    result = []
-    for acc in ACCOUNTS.values():
-        result.append({
-            **acc,
-            "risk": compute_risk(acc),
-            "arr_formatted": f"${acc['arr']:,}",
-        })
-    return result
-
-
-@app.get("/api/accounts/{account_id}")
-def get_account(account_id: str):
-    acc = ACCOUNTS.get(account_id.lower())
-    if not acc:
-        return {"error": "Account not found"}
-    return {**acc, "risk": compute_risk(acc), "arr_formatted": f"${acc['arr']:,}"}
-
-
-# ── CHAT ───────────────────────────────────────────────────────────────────────
-
-class ChatRequest(BaseModel):
-    message: str
-    account_id: Optional[str] = None
-    history: Optional[List[dict]] = []
-
-
-SAFETY_PHRASES = [
-    "send email", "send an email", "draft email",
-    "update crm", "update the crm", "log in crm",
-    "approve discount", "give discount", "offer discount",
-    "schedule a call", "book a call", "book meeting",
-    "contact the customer", "contact globalbank", "contact acme", "contact techflow",
-    "modify", "delete account", "remove account",
-]
-
-
-@app.post("/api/chat")
-def chat(req: ChatRequest):
-    try:
-        from langchain_groq import ChatGroq
-
-        llm = ChatGroq(
-            model="openai/gpt-oss-20b",
-            api_key=os.environ.get("GROQ_API_KEY"),
-            temperature=0.3,
-        )
-
-        msg_lower = req.message.lower()
-        if any(phrase in msg_lower for phrase in SAFETY_PHRASES):
-            return {
-                "response": (
-                    "❌ **Action not permitted** — I am a read-only decision support agent.\n\n"
-                    "I cannot send emails, update CRM records, approve discounts, or contact customers directly.\n\n"
-                    "What I *can* do: prepare talking points, draft a QBR agenda, summarise account health, "
-                    "or recommend the right playbook for you to act on.\n\n"
-                    "Would you like me to prepare any of these instead?"
-                ),
-                "escalation": False,
-                "blocked": True,
-            }
-
-        # Build account context
-        account_context = ""
-        if req.account_id:
-            acc = ACCOUNTS.get(req.account_id.lower())
-            if acc:
-                risk = compute_risk(acc)
-                account_context = f"""
-SELECTED ACCOUNT:
-- Name: {acc['name']} ({acc['domain']})
-- Industry: {acc['industry']} | Plan: {acc['plan']} | Users: {acc['users']:,}
-- ARR: ${acc['arr']:,} | Renewal: {acc['renewal_date']}
-- Risk Level: {risk}
-- Open Tickets: {acc['open_tickets']} | Usage Drop: {acc['usage_drop_pct']}%
-- NPS Score: {acc['nps_score']} | Days Since Login: {acc['days_since_login']}
-- Health Trend: {acc['health_trend'].title()}
-- CSM: {acc['csm']}
-"""
-
-        # Also include all accounts for portfolio queries
-        portfolio_context = "PORTFOLIO OVERVIEW:\n"
-        for a in ACCOUNTS.values():
-            r = compute_risk(a)
-            portfolio_context += f"- {a['name']}: {r} risk | ARR ${a['arr']:,} | Tickets {a['open_tickets']} | Usage drop {a['usage_drop_pct']}% | NPS {a['nps_score']}\n"
-
-        system_prompt = f"""You are ChurnSignal, an AI Customer Health & Churn Prevention Copilot for Customer Success Managers (CSMs).
+SYSTEM_PROMPT = f"""You are ChurnSignal, an AI Customer Health & Churn Prevention Copilot for Customer Success Managers (CSMs).
 
 You are a READ-ONLY decision support agent. You NEVER send emails, update CRMs, approve discounts, or contact customers autonomously. If asked to perform any action, refuse clearly and offer to prepare the content instead.
 
-{account_context if account_context else ""}
+You have access to live Supabase tools to fetch real account data. Use them to answer questions accurately. Always fetch data before making recommendations — do not rely on memory.
 
-{portfolio_context}
+Available accounts: globalbank, techstartup, retailco
 
 CHURN PREVENTION PLAYBOOKS:
 {PLAYBOOKS}
 
-RESPONSE FORMAT (use this structure for health checks and recommendations):
+RESPONSE FORMAT for health checks and recommendations:
 **RISK LEVEL:** [CRITICAL / HIGH / MEDIUM / LOW]
 
 **ASSESSMENT:** 2-3 clear, data-driven sentences about account health.
@@ -260,18 +222,158 @@ For QBR prep, provide a detailed agenda and talking points.
 For general questions, answer concisely and helpfully.
 Be direct, professional, and specific — avoid vague advice."""
 
-        messages = [{"role": "system", "content": system_prompt}]
 
-        # Include recent history (last 6 messages = 3 turns)
+# ── SAFETY GUARDRAIL ─────────────────────────────────────────────────────────
+
+SAFETY_PHRASES = [
+    "send email", "send an email", "draft email",
+    "update crm", "update the crm", "log in crm",
+    "approve discount", "give discount", "offer discount",
+    "schedule a call", "book a call", "book meeting",
+    "contact the customer", "contact globalbank", "contact techstartup", "contact retailco",
+    "modify", "delete account", "remove account",
+    "cancel subscription", "terminate contract",
+]
+
+
+# ── ROUTES ────────────────────────────────────────────────────────────────────
+
+@app.get("/api/health")
+def health():
+    return {"status": "ok", "service": "ChurnSignal API", "version": "2.0.0"}
+
+
+@app.get("/api/accounts")
+def list_accounts():
+    try:
+        sb = get_supabase()
+        res = sb.table("accounts").select("*").execute()
+        result = []
+        for acc in res.data:
+            hs = acc["health_score"]
+            if hs < 30:
+                risk = "CRITICAL"
+            elif hs < 50:
+                risk = "HIGH"
+            elif hs < 70:
+                risk = "MEDIUM"
+            else:
+                risk = "LOW"
+            result.append({
+                **acc,
+                "risk": risk,
+                "arr_formatted": f"${acc['arr']:,}",
+                "logo_initial": acc["name"][:2].upper(),
+            })
+        return result
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/accounts/{account_id}")
+def get_account(account_id: str):
+    try:
+        sb = get_supabase()
+        res = sb.table("accounts").select("*").eq("id", account_id.lower()).execute()
+        if not res.data:
+            return {"error": "Account not found"}
+        acc = res.data[0]
+        hs = acc["health_score"]
+        if hs < 30:
+            risk = "CRITICAL"
+        elif hs < 50:
+            risk = "HIGH"
+        elif hs < 70:
+            risk = "MEDIUM"
+        else:
+            risk = "LOW"
+        return {**acc, "risk": risk, "arr_formatted": f"${acc['arr']:,}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ── CHAT WITH TOOL CALLING ────────────────────────────────────────────────────
+
+class ChatRequest(BaseModel):
+    message: str
+    account_id: Optional[str] = None
+    history: Optional[List[dict]] = []
+
+
+@app.post("/api/chat")
+def chat(req: ChatRequest):
+    try:
+        from langchain_groq import ChatGroq
+        from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
+
+        llm = ChatGroq(
+            model="openai/gpt-oss-20b",
+            api_key=os.environ.get("GROQ_API_KEY"),
+            temperature=0.3,
+        )
+
+        # Safety guardrail — fires before LLM
+        msg_lower = req.message.lower()
+        if any(phrase in msg_lower for phrase in SAFETY_PHRASES):
+            return {
+                "response": (
+                    "❌ **Action not permitted** — I am a read-only decision support agent.\n\n"
+                    "I cannot send emails, update CRM records, approve discounts, or contact customers directly.\n\n"
+                    "What I *can* do: prepare talking points, draft a QBR agenda, summarise account health, "
+                    "or recommend the right playbook for you to act on.\n\n"
+                    "Would you like me to prepare any of these instead?"
+                ),
+                "escalation": False,
+                "blocked": True,
+            }
+
+        # Build message list
+        llm_with_tools = llm.bind_tools(TOOLS)
+
+        messages = [SystemMessage(content=SYSTEM_PROMPT)]
+
+        # Add conversation history
         for h in (req.history or [])[-6:]:
-            messages.append({"role": h["role"], "content": h["content"]})
+            if h["role"] == "user":
+                messages.append(HumanMessage(content=h["content"]))
+            elif h["role"] == "assistant":
+                messages.append(AIMessage(content=h["content"]))
 
-        messages.append({"role": "user", "content": req.message})
+        # If account_id provided, hint to the LLM
+        user_message = req.message
+        if req.account_id:
+            user_message = f"[Account context: {req.account_id}]\n{req.message}"
 
-        response = llm.invoke(messages)
-        text = response.content
+        messages.append(HumanMessage(content=user_message))
 
-        escalation = any(kw in text.upper() for kw in [
+        # Agentic loop — LLM calls tools until it has enough data
+        max_iterations = 5
+        for _ in range(max_iterations):
+            response = llm_with_tools.invoke(messages)
+            messages.append(response)
+
+            # If no tool calls, we have the final answer
+            if not response.tool_calls:
+                break
+
+            # Execute each tool call
+            for tc in response.tool_calls:
+                tool_name = tc["name"]
+                tool_args = tc["args"]
+                tool_fn = TOOL_MAP.get(tool_name)
+                if tool_fn:
+                    tool_result = tool_fn.invoke(tool_args)
+                else:
+                    tool_result = f"Unknown tool: {tool_name}"
+
+                messages.append(ToolMessage(
+                    content=str(tool_result),
+                    tool_call_id=tc["id"]
+                ))
+
+        final_text = response.content
+
+        escalation = any(kw in final_text.upper() for kw in [
             "ESCALATION FLAG: YES",
             "ESCALATION REQUIRED",
             "VP CUSTOMER SUCCESS",
@@ -279,14 +381,14 @@ Be direct, professional, and specific — avoid vague advice."""
         ])
 
         return {
-            "response": text,
+            "response": final_text,
             "escalation": escalation,
             "blocked": False,
         }
 
     except Exception as e:
         return {
-            "response": f"⚠️ Agent error: {str(e)}\n\nPlease ensure GROQ_API_KEY is set and the API is reachable.",
+            "response": f"⚠️ Agent error: {str(e)}\n\nPlease check that GROQ_API_KEY, SUPABASE_URL and SUPABASE_SERVICE_KEY are set in Render environment variables.",
             "escalation": False,
             "blocked": False,
         }
