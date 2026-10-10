@@ -1072,8 +1072,8 @@
                   <th>ARR</th>
                   <th>Risk</th>
                   <th>Tickets</th>
-                  <th>NPS</th>
-                  <th>Usage Drop</th>
+                  <th>Health Score</th>
+                  <th>Last Login</th>
                   <th></th>
                 </tr>
               </thead>
@@ -1212,9 +1212,9 @@ let isLoading = false;
 
 // ── COLOUR MAPS ─────────────────────────────────────────────────────
 const AVATAR_COLORS = {
-  globalbank: { bg:'#dbeafe', color:'#1d4ed8' },
-  techflow:   { bg:'#d1fae5', color:'#065f46' },
-  acmecorp:   { bg:'#ede9fe', color:'#5b21b6' },
+  globalbank:  { bg:'#dbeafe', color:'#1d4ed8' },
+  techstartup: { bg:'#d1fae5', color:'#065f46' },
+  retailco:    { bg:'#ede9fe', color:'#5b21b6' },
 };
 
 const RISK_ORDER = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
@@ -1257,7 +1257,8 @@ function renderAccountsTable(accounts) {
   }
   tbody.innerHTML = accounts.map(acc => {
     const av = AVATAR_COLORS[acc.id] || { bg:'#f1f5f9', color:'#475569' };
-    const usageClass = acc.usage_drop_pct > 50 ? 'danger' : acc.usage_drop_pct > 25 ? 'warn' : '';
+    const hsColor = acc.health_score < 30 ? 'var(--risk-critical)' : acc.health_score < 50 ? 'var(--risk-high)' : acc.health_score < 70 ? 'var(--risk-medium)' : 'var(--risk-low)';
+    const loginColor = acc.last_login_days_ago > 30 ? 'var(--risk-critical)' : acc.last_login_days_ago > 14 ? 'var(--risk-high)' : 'var(--slate-700)';
     return `
       <tr class="account-row" onclick="openAccount('${acc.id}')">
         <td>
@@ -1265,7 +1266,7 @@ function renderAccountsTable(accounts) {
             <div class="acc-avatar" style="background:${av.bg};color:${av.color};">${acc.logo_initial}</div>
             <div>
               <div class="acc-name">${acc.name}</div>
-              <div class="acc-domain">${acc.domain}</div>
+              <div class="acc-domain">${acc.tier} · ${acc.industry}</div>
             </div>
           </div>
         </td>
@@ -1273,8 +1274,8 @@ function renderAccountsTable(accounts) {
         <td class="arr-cell">${acc.arr_formatted}</td>
         <td><span class="risk-badge ${acc.risk}"><span class="risk-dot"></span>${acc.risk}</span></td>
         <td>${acc.open_tickets}</td>
-        <td style="font-weight:600;color:${acc.nps_score < 6 ? 'var(--risk-critical)' : acc.nps_score < 8 ? 'var(--risk-medium)' : 'var(--risk-low)'};">${acc.nps_score}</td>
-        <td style="font-weight:600;color:${acc.usage_drop_pct > 50 ? 'var(--risk-critical)' : acc.usage_drop_pct > 25 ? 'var(--risk-high)' : 'var(--risk-low)'};">${acc.usage_drop_pct}%</td>
+        <td style="font-weight:600;color:${hsColor};">${acc.health_score}</td>
+        <td style="font-weight:600;color:${loginColor};">${acc.last_login_days_ago}d ago</td>
         <td>
           <button class="btn-row-action" onclick="event.stopPropagation(); quickCheck('${acc.id}')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -1290,7 +1291,7 @@ function filterAccounts(query) {
   const filtered = allAccounts.filter(a =>
     a.name.toLowerCase().includes(q) ||
     a.industry.toLowerCase().includes(q) ||
-    a.domain.toLowerCase().includes(q) ||
+    a.tier.toLowerCase().includes(q) ||
     a.risk.toLowerCase().includes(q)
   );
   renderAccountsTable(filtered);
@@ -1331,7 +1332,7 @@ function renderDetailPanel(acc) {
   document.getElementById('detail-avatar').style.color = av.color;
   document.getElementById('detail-avatar').textContent = acc.logo_initial;
   document.getElementById('detail-name').textContent = acc.name;
-  document.getElementById('detail-meta').textContent = `${acc.industry} · ${acc.domain}`;
+  document.getElementById('detail-meta').textContent = `${acc.industry} · ${acc.tier}`;
   document.getElementById('detail-check-label').textContent = `Check ${acc.name} Health`;
 
   const rb = document.getElementById('detail-risk-badge');
@@ -1339,16 +1340,16 @@ function renderDetailPanel(acc) {
   rb.innerHTML = `<span class="risk-dot"></span>${acc.risk} RISK`;
 
   // Metrics grid
-  const usageDanger = acc.usage_drop_pct > 50 ? 'danger' : acc.usage_drop_pct > 25 ? 'warn' : 'good';
-  const ticketDanger = acc.open_tickets > 100 ? 'danger' : acc.open_tickets > 30 ? 'warn' : 'good';
-  const npsDanger = acc.nps_score < 5 ? 'danger' : acc.nps_score < 7 ? 'warn' : 'good';
-  const loginDanger = acc.days_since_login > 10 ? 'danger' : acc.days_since_login > 5 ? 'warn' : 'good';
+  const hsDanger = acc.health_score < 30 ? 'danger' : acc.health_score < 50 ? 'warn' : 'good';
+  const ticketDanger = acc.open_tickets >= 3 ? 'danger' : acc.open_tickets >= 2 ? 'warn' : 'good';
+  const loginDanger = acc.last_login_days_ago > 30 ? 'danger' : acc.last_login_days_ago > 14 ? 'warn' : 'good';
+  const mrrColor = 'good';
 
   document.getElementById('detail-metrics').innerHTML = `
     <div class="metric-card">
-      <div class="metric-label">Usage Drop</div>
-      <div class="metric-value ${usageDanger}">${acc.usage_drop_pct}%</div>
-      <div class="metric-sub">vs prior period</div>
+      <div class="metric-label">Health Score</div>
+      <div class="metric-value ${hsDanger}">${acc.health_score}</div>
+      <div class="metric-sub">out of 100</div>
     </div>
     <div class="metric-card">
       <div class="metric-label">Open Tickets</div>
@@ -1356,23 +1357,23 @@ function renderDetailPanel(acc) {
       <div class="metric-sub">unresolved</div>
     </div>
     <div class="metric-card">
-      <div class="metric-label">NPS Score</div>
-      <div class="metric-value ${npsDanger}">${acc.nps_score}</div>
-      <div class="metric-sub">out of 10</div>
+      <div class="metric-label">Days Since Login</div>
+      <div class="metric-value ${loginDanger}">${acc.last_login_days_ago}</div>
+      <div class="metric-sub">days inactive</div>
     </div>
     <div class="metric-card">
-      <div class="metric-label">Days Since Login</div>
-      <div class="metric-value ${loginDanger}">${acc.days_since_login}</div>
-      <div class="metric-sub">days inactive</div>
+      <div class="metric-label">MRR</div>
+      <div class="metric-value ${mrrColor}">$${acc.mrr.toLocaleString()}</div>
+      <div class="metric-sub">monthly recurring</div>
     </div>`;
 
   document.getElementById('detail-fields').innerHTML = `
-    <div class="detail-field"><span class="field-key">Plan</span><span class="field-val">${acc.plan}</span></div>
-    <div class="detail-field"><span class="field-key">Users</span><span class="field-val">${acc.users.toLocaleString()}</span></div>
+    <div class="detail-field"><span class="field-key">Tier</span><span class="field-val">${acc.tier}</span></div>
+    <div class="detail-field"><span class="field-key">Industry</span><span class="field-val">${acc.industry}</span></div>
     <div class="detail-field"><span class="field-key">ARR</span><span class="field-val">${acc.arr_formatted}</span></div>
-    <div class="detail-field"><span class="field-key">Renewal</span><span class="field-val">${acc.renewal_date}</span></div>
-    <div class="detail-field"><span class="field-key">Health Trend</span><span class="field-val" style="text-transform:capitalize;">${acc.health_trend}</span></div>
-    <div class="detail-field"><span class="field-key">CSM</span><span class="field-val">${acc.csm}</span></div>`;
+    <div class="detail-field"><span class="field-key">Contract End</span><span class="field-val">${acc.contract_end_date}</span></div>
+    <div class="detail-field"><span class="field-key">Risk Level</span><span class="field-val">${acc.risk}</span></div>
+    <div class="detail-field"><span class="field-key">CSM Owner</span><span class="field-val">${acc.csm_owner}</span></div>`;
 }
 
 function renderSuggestions(acc) {
