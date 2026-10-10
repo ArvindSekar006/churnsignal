@@ -1,0 +1,1573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ChurnSignal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* ── RESET & BASE ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --teal-900: #0d3d35;
+      --teal-800: #0f4f44;
+      --teal-700: #146352;
+      --teal-600: #1a7a63;
+      --teal-500: #219178;
+      --teal-400: #2aad90;
+      --teal-300: #4dc4a8;
+      --teal-200: #89ddd0;
+      --teal-100: #d0f2ee;
+      --teal-50:  #f0fbf9;
+
+      --slate-900: #0f172a;
+      --slate-800: #1e293b;
+      --slate-700: #334155;
+      --slate-600: #475569;
+      --slate-500: #64748b;
+      --slate-400: #94a3b8;
+      --slate-300: #cbd5e1;
+      --slate-200: #e2e8f0;
+      --slate-100: #f1f5f9;
+      --slate-50:  #f8fafc;
+
+      --risk-critical: #dc2626;
+      --risk-critical-bg: #fef2f2;
+      --risk-high: #ea580c;
+      --risk-high-bg: #fff7ed;
+      --risk-medium: #ca8a04;
+      --risk-medium-bg: #fefce8;
+      --risk-low: #16a34a;
+      --risk-low-bg: #f0fdf4;
+
+      --nav-width: 220px;
+      --topbar-h: 60px;
+      --font: 'Poppins', sans-serif;
+      --radius: 10px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.04);
+    }
+
+    html, body { height: 100%; font-family: var(--font); background: var(--slate-50); color: var(--slate-900); font-size: 14px; line-height: 1.5; }
+
+    /* ── LAYOUT ───────────────────────────────────────────────── */
+    .shell { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+    /* TOP BAR */
+    .topbar {
+      height: var(--topbar-h);
+      background: #fff;
+      border-bottom: 1px solid var(--slate-200);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 16px;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      flex-shrink: 0;
+    }
+
+    .brand-logo {
+      width: 36px;
+      height: 36px;
+      flex-shrink: 0;
+    }
+
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.1;
+    }
+
+    .brand-name {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--teal-800);
+      letter-spacing: -0.3px;
+    }
+
+    .brand-tagline {
+      font-size: 9.5px;
+      font-weight: 400;
+      color: var(--slate-500);
+      letter-spacing: 0.2px;
+    }
+
+    .topbar-spacer { flex: 1; }
+
+    .topbar-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .topbar-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--slate-500);
+      font-weight: 500;
+    }
+
+    .status-dot {
+      width: 7px; height: 7px;
+      background: var(--teal-400);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .avatar-wrap { position: relative; }
+
+    .avatar {
+      width: 34px; height: 34px;
+      background: var(--teal-700);
+      color: #fff;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 600;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      transition: background 0.15s;
+    }
+
+    .avatar:hover { background: var(--teal-600); }
+
+    .avatar-dropdown {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      background: #fff;
+      border: 1px solid var(--slate-200);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-md);
+      min-width: 180px;
+      display: none;
+      z-index: 100;
+      overflow: hidden;
+    }
+
+    .avatar-dropdown.open { display: block; }
+
+    .dropdown-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--slate-100);
+    }
+
+    .dropdown-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--slate-800);
+    }
+
+    .dropdown-role {
+      font-size: 11px;
+      color: var(--slate-500);
+      margin-top: 1px;
+    }
+
+    .dropdown-item {
+      padding: 9px 16px;
+      font-size: 13px;
+      color: var(--slate-700);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.12s;
+    }
+
+    .dropdown-item:hover { background: var(--slate-50); }
+    .dropdown-item svg { width: 14px; height: 14px; color: var(--slate-400); }
+
+    /* BODY ROW */
+    .body-row {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* LEFT NAV */
+    .leftnav {
+      width: var(--nav-width);
+      background: #fff;
+      border-right: 1px solid var(--slate-200);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      padding: 16px 0;
+    }
+
+    .nav-section-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--slate-400);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      padding: 0 20px;
+      margin: 8px 0 6px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 20px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--slate-600);
+      cursor: pointer;
+      border-left: 3px solid transparent;
+      transition: all 0.12s;
+      user-select: none;
+    }
+
+    .nav-item:hover { background: var(--teal-50); color: var(--teal-700); }
+    .nav-item.active { background: var(--teal-50); color: var(--teal-700); border-left-color: var(--teal-500); font-weight: 600; }
+
+    .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+    .nav-count {
+      margin-left: auto;
+      background: var(--teal-100);
+      color: var(--teal-700);
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 10px;
+    }
+
+    .nav-spacer { flex: 1; }
+
+    .nav-bottom {
+      padding: 12px 20px;
+      border-top: 1px solid var(--slate-100);
+    }
+
+    .nav-user {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nav-user-avatar {
+      width: 28px; height: 28px;
+      background: var(--teal-700);
+      color: #fff;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    .nav-user-info { flex: 1; min-width: 0; }
+    .nav-user-name { font-size: 12px; font-weight: 600; color: var(--slate-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .nav-user-role { font-size: 10px; color: var(--slate-400); }
+
+    /* MAIN CONTENT */
+    .main {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── VIEWS ────────────────────────────────────────────────── */
+    .view { display: none; flex: 1; overflow: hidden; }
+    .view.active { display: flex; flex-direction: column; }
+
+    /* PAGE HEADER */
+    .page-header {
+      padding: 20px 28px 16px;
+      flex-shrink: 0;
+    }
+
+    .page-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--slate-900);
+      letter-spacing: -0.3px;
+    }
+
+    .page-sub {
+      font-size: 13px;
+      color: var(--slate-500);
+      margin-top: 2px;
+    }
+
+    /* SUMMARY CARDS */
+    .summary-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      padding: 0 28px 20px;
+      flex-shrink: 0;
+    }
+
+    .summary-card {
+      background: #fff;
+      border: 1px solid var(--slate-200);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .summary-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--slate-500);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+
+    .summary-value {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--slate-900);
+      line-height: 1;
+    }
+
+    .summary-value.critical { color: var(--risk-critical); }
+    .summary-value.high { color: var(--risk-high); }
+    .summary-value.medium { color: var(--risk-medium); }
+    .summary-value.low { color: var(--risk-low); }
+
+    .summary-hint {
+      font-size: 11px;
+      color: var(--slate-400);
+      margin-top: 4px;
+    }
+
+    /* ACCOUNTS TABLE */
+    .table-wrap {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 28px 24px;
+    }
+
+    .table-card {
+      background: #fff;
+      border: 1px solid var(--slate-200);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .table-toolbar {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--slate-100);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .table-toolbar-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--slate-700);
+    }
+
+    .toolbar-spacer { flex: 1; }
+
+    .search-box {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--slate-50);
+      border: 1px solid var(--slate-200);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 12px;
+      color: var(--slate-500);
+    }
+
+    .search-box svg { width: 13px; height: 13px; }
+    .search-box input { border: none; outline: none; background: transparent; font-family: var(--font); font-size: 12px; color: var(--slate-700); width: 140px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--slate-500);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 10px 20px;
+      text-align: left;
+      background: var(--slate-50);
+      border-bottom: 1px solid var(--slate-200);
+    }
+
+    td {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--slate-100);
+      font-size: 13px;
+      color: var(--slate-700);
+      vertical-align: middle;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    tr.account-row { cursor: pointer; transition: background 0.1s; }
+    tr.account-row:hover td { background: var(--teal-50); }
+
+    .account-cell {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .acc-avatar {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .acc-name { font-weight: 600; color: var(--slate-900); }
+    .acc-domain { font-size: 11px; color: var(--slate-400); }
+
+    .risk-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .risk-badge.CRITICAL { background: var(--risk-critical-bg); color: var(--risk-critical); }
+    .risk-badge.HIGH { background: var(--risk-high-bg); color: var(--risk-high); }
+    .risk-badge.MEDIUM { background: var(--risk-medium-bg); color: var(--risk-medium); }
+    .risk-badge.LOW { background: var(--risk-low-bg); color: var(--risk-low); }
+
+    .risk-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .arr-cell { font-weight: 600; color: var(--slate-800); }
+    .meta-cell { color: var(--slate-500); font-size: 12px; }
+
+    .btn-row-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--teal-50);
+      color: var(--teal-700);
+      border: 1px solid var(--teal-200);
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+
+    .btn-row-action:hover { background: var(--teal-100); border-color: var(--teal-300); }
+
+    /* ── ACCOUNT DETAIL VIEW ──────────────────────────────────── */
+    #view-detail {
+      flex-direction: row;
+      overflow: hidden;
+    }
+
+    .detail-left {
+      width: 380px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--slate-200);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .detail-header {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--slate-100);
+      flex-shrink: 0;
+    }
+
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      color: var(--teal-600);
+      cursor: pointer;
+      font-weight: 500;
+      margin-bottom: 14px;
+      transition: color 0.12s;
+    }
+
+    .back-btn:hover { color: var(--teal-800); }
+    .back-btn svg { width: 13px; height: 13px; }
+
+    .detail-acc-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .detail-acc-avatar {
+      width: 44px; height: 44px;
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .detail-acc-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--slate-900);
+      letter-spacing: -0.3px;
+    }
+
+    .detail-acc-meta {
+      font-size: 12px;
+      color: var(--slate-500);
+    }
+
+    .detail-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 24px;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--slate-400);
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      margin-bottom: 12px;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .metric-card {
+      background: var(--slate-50);
+      border: 1px solid var(--slate-200);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+
+    .metric-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--slate-400);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .metric-value {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--slate-900);
+      line-height: 1;
+    }
+
+    .metric-value.warn { color: var(--risk-high); }
+    .metric-value.danger { color: var(--risk-critical); }
+    .metric-value.good { color: var(--risk-low); }
+
+    .metric-sub {
+      font-size: 10px;
+      color: var(--slate-400);
+      margin-top: 3px;
+    }
+
+    .detail-field {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--slate-100);
+      font-size: 13px;
+    }
+
+    .detail-field:last-child { border-bottom: none; }
+    .field-key { color: var(--slate-500); font-weight: 500; }
+    .field-val { color: var(--slate-800); font-weight: 600; text-align: right; }
+
+    .detail-actions {
+      padding: 16px 24px;
+      border-top: 1px solid var(--slate-100);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .btn-primary {
+      background: var(--teal-600);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: var(--font);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      transition: background 0.15s;
+    }
+
+    .btn-primary:hover { background: var(--teal-700); }
+
+    .btn-secondary {
+      background: #fff;
+      color: var(--teal-700);
+      border: 1px solid var(--teal-300);
+      border-radius: 8px;
+      padding: 9px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: var(--font);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      transition: all 0.15s;
+    }
+
+    .btn-secondary:hover { background: var(--teal-50); }
+
+    /* ── CHAT PANEL ───────────────────────────────────────────── */
+    .chat-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--slate-50);
+    }
+
+    .chat-header {
+      padding: 16px 24px;
+      background: #fff;
+      border-bottom: 1px solid var(--slate-200);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .chat-header-icon {
+      width: 32px; height: 32px;
+      background: var(--teal-100);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .chat-header-icon svg { width: 16px; height: 16px; color: var(--teal-600); }
+
+    .chat-header-text { flex: 1; }
+    .chat-header-title { font-size: 14px; font-weight: 600; color: var(--slate-900); }
+    .chat-header-sub { font-size: 11px; color: var(--slate-400); }
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .chat-empty {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--slate-400);
+      gap: 8px;
+      text-align: center;
+    }
+
+    .chat-empty svg { width: 40px; height: 40px; color: var(--teal-200); }
+    .chat-empty-title { font-size: 14px; font-weight: 600; color: var(--slate-500); }
+    .chat-empty-sub { font-size: 12px; color: var(--slate-400); max-width: 260px; }
+
+    .chat-suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 12px;
+    }
+
+    .chat-suggestion {
+      background: #fff;
+      border: 1px solid var(--slate-200);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 12px;
+      color: var(--teal-700);
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.12s;
+      font-family: var(--font);
+    }
+
+    .chat-suggestion:hover { background: var(--teal-50); border-color: var(--teal-300); }
+
+    .msg {
+      display: flex;
+      gap: 10px;
+      max-width: 100%;
+    }
+
+    .msg.user { flex-direction: row-reverse; }
+
+    .msg-avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .msg.agent .msg-avatar { background: var(--teal-100); color: var(--teal-700); }
+    .msg.user .msg-avatar { background: var(--slate-200); color: var(--slate-600); }
+
+    .msg-bubble {
+      max-width: calc(100% - 50px);
+      background: #fff;
+      border: 1px solid var(--slate-200);
+      border-radius: 12px;
+      padding: 12px 15px;
+      font-size: 13px;
+      color: var(--slate-800);
+      line-height: 1.6;
+      box-shadow: var(--shadow);
+    }
+
+    .msg.user .msg-bubble {
+      background: var(--teal-700);
+      color: #fff;
+      border-color: var(--teal-700);
+    }
+
+    .msg-bubble p { margin-bottom: 6px; }
+    .msg-bubble p:last-child { margin-bottom: 0; }
+    .msg-bubble strong { font-weight: 600; }
+    .msg.user .msg-bubble strong { color: #fff; }
+    .msg-bubble ul, .msg-bubble ol { margin: 6px 0 6px 18px; }
+    .msg-bubble li { margin-bottom: 3px; }
+
+    .escalation-flag {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      background: #fff3cd;
+      border: 1px solid #f0c36d;
+      border-radius: 8px;
+      padding: 10px 13px;
+      font-size: 12px;
+      color: #7a5400;
+      margin-top: 8px;
+      font-weight: 500;
+    }
+
+    .escalation-flag svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
+
+    .blocked-flag {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      background: #fef2f2;
+      border: 1px solid #fca5a5;
+      border-radius: 8px;
+      padding: 10px 13px;
+      font-size: 12px;
+      color: #991b1b;
+      margin-top: 8px;
+      font-weight: 500;
+    }
+
+    .blocked-flag svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
+
+    .msg-time { font-size: 10px; color: var(--slate-400); margin-top: 4px; }
+    .msg.user .msg-time { text-align: right; }
+
+    .typing-indicator {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      padding: 10px 14px;
+    }
+
+    .typing-dot {
+      width: 7px; height: 7px;
+      background: var(--teal-300);
+      border-radius: 50%;
+      animation: typing 1.2s infinite;
+    }
+
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes typing {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.6; }
+      30% { transform: translateY(-5px); opacity: 1; }
+    }
+
+    .chat-input-area {
+      padding: 16px 24px;
+      background: #fff;
+      border-top: 1px solid var(--slate-200);
+      flex-shrink: 0;
+    }
+
+    .chat-input-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+
+    .chat-input {
+      flex: 1;
+      border: 1px solid var(--slate-200);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-family: var(--font);
+      color: var(--slate-800);
+      resize: none;
+      outline: none;
+      transition: border-color 0.15s;
+      min-height: 42px;
+      max-height: 120px;
+      line-height: 1.5;
+    }
+
+    .chat-input:focus { border-color: var(--teal-400); }
+    .chat-input::placeholder { color: var(--slate-400); }
+
+    .send-btn {
+      width: 40px; height: 40px;
+      background: var(--teal-600);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+
+    .send-btn:hover { background: var(--teal-700); }
+    .send-btn:disabled { background: var(--slate-300); cursor: not-allowed; }
+    .send-btn svg { width: 16px; height: 16px; }
+
+    .chat-hint {
+      font-size: 10px;
+      color: var(--slate-400);
+      margin-top: 6px;
+      text-align: center;
+    }
+
+    /* ── SETTINGS / DUMMY VIEWS ───────────────────────────────── */
+    .placeholder-view {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 10px;
+      color: var(--slate-400);
+    }
+
+    .placeholder-view svg { width: 48px; height: 48px; color: var(--teal-200); }
+    .placeholder-view h3 { font-size: 16px; font-weight: 600; color: var(--slate-500); }
+    .placeholder-view p { font-size: 13px; color: var(--slate-400); }
+
+    /* ── SCROLLBARS ───────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--slate-300); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--slate-400); }
+
+    /* ── UTILS ────────────────────────────────────────────────── */
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ── TOP BAR ───────────────────────────────────────────────── -->
+  <header class="topbar">
+    <a class="brand" href="#" onclick="showView('accounts'); return false;">
+      <!-- SVG approximation of churnsignal logo mark -->
+      <svg class="brand-logo" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 46 Q12 14 32 14" stroke="#0f4f44" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+        <path d="M18 46 Q18 20 32 20" stroke="#0f4f44" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+        <path d="M24 46 Q24 27 32 27" stroke="#0f4f44" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+        <path d="M30 46 Q30 35 32 35" stroke="#0f4f44" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+        <circle cx="38" cy="44" r="4" fill="#1a7a63"/>
+      </svg>
+      <div class="brand-text">
+        <span class="brand-name">churnsignal</span>
+        <span class="brand-tagline">Stop departures before they start</span>
+      </div>
+    </a>
+
+    <div class="topbar-spacer"></div>
+
+    <div class="topbar-meta">
+      <div class="topbar-badge">
+        <div class="status-dot"></div>
+        Agent online
+      </div>
+      <div class="avatar-wrap">
+        <div class="avatar" onclick="toggleDropdown()">AS</div>
+        <div class="avatar-dropdown" id="avatarDropdown">
+          <div class="dropdown-header">
+            <div class="dropdown-name">Arvind Sekar</div>
+            <div class="dropdown-role">Customer Success Manager</div>
+          </div>
+          <div class="dropdown-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+            Account Management
+          </div>
+          <div class="dropdown-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+            Notifications
+          </div>
+          <div class="dropdown-item" style="border-top:1px solid var(--slate-100); margin-top:4px; padding-top:10px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>
+            Settings
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── BODY ──────────────────────────────────────────────────── -->
+  <div class="body-row">
+
+    <!-- LEFT NAV -->
+    <nav class="leftnav">
+      <div class="nav-section-label">Workspace</div>
+
+      <div class="nav-item active" id="nav-accounts" onclick="showView('accounts')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Accounts
+        <span class="nav-count" id="nav-count">3</span>
+      </div>
+
+      <div class="nav-item" id="nav-playbooks" onclick="showView('playbooks')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        Playbooks
+      </div>
+
+      <div class="nav-section-label" style="margin-top:8px;">System</div>
+
+      <div class="nav-item" id="nav-settings" onclick="showView('settings')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>
+        Settings
+      </div>
+
+      <div class="nav-spacer"></div>
+
+      <div class="nav-bottom">
+        <div class="nav-user">
+          <div class="nav-user-avatar">AS</div>
+          <div class="nav-user-info">
+            <div class="nav-user-name">Arvind Sekar</div>
+            <div class="nav-user-role">CSM</div>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <main class="main">
+
+      <!-- ── ACCOUNTS LIST VIEW ─────────────────────────────── -->
+      <div class="view active" id="view-accounts">
+        <div class="page-header">
+          <div class="page-title">My Accounts</div>
+          <div class="page-sub">Customer health overview · <span id="today-date"></span></div>
+        </div>
+
+        <div class="summary-row">
+          <div class="summary-card">
+            <div class="summary-label">Total Accounts</div>
+            <div class="summary-value">3</div>
+            <div class="summary-hint">Under management</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">Critical Risk</div>
+            <div class="summary-value critical" id="count-critical">—</div>
+            <div class="summary-hint">Immediate action</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">Total ARR</div>
+            <div class="summary-value" id="total-arr" style="font-size:20px;">—</div>
+            <div class="summary-hint">Portfolio value</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">Open Tickets</div>
+            <div class="summary-value warn" id="total-tickets">—</div>
+            <div class="summary-hint">Across all accounts</div>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <div class="table-card">
+            <div class="table-toolbar">
+              <span class="table-toolbar-title">All Accounts</span>
+              <div class="toolbar-spacer"></div>
+              <div class="search-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <input type="text" placeholder="Search accounts…" oninput="filterAccounts(this.value)" />
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Account</th>
+                  <th>Industry</th>
+                  <th>ARR</th>
+                  <th>Risk</th>
+                  <th>Tickets</th>
+                  <th>NPS</th>
+                  <th>Usage Drop</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="accounts-tbody">
+                <tr><td colspan="8" style="text-align:center; color:var(--slate-400); padding:32px;">Loading accounts…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ACCOUNT DETAIL VIEW ────────────────────────────── -->
+      <div class="view" id="view-detail">
+
+        <!-- Left: account detail panel -->
+        <div class="detail-left">
+          <div class="detail-header">
+            <div class="back-btn" onclick="showView('accounts')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+              All Accounts
+            </div>
+            <div class="detail-acc-row">
+              <div class="detail-acc-avatar" id="detail-avatar"></div>
+              <div>
+                <div class="detail-acc-name" id="detail-name"></div>
+                <div class="detail-acc-meta" id="detail-meta"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="detail-body">
+
+            <!-- Risk badge -->
+            <div style="margin-bottom: 20px;">
+              <div class="section-title">Risk Level</div>
+              <div id="detail-risk-badge" class="risk-badge" style="font-size:14px; padding:6px 16px;"></div>
+            </div>
+
+            <!-- Key metrics -->
+            <div class="section-title">Health Metrics</div>
+            <div class="metrics-grid" id="detail-metrics"></div>
+
+            <!-- Account details -->
+            <div class="section-title">Account Details</div>
+            <div id="detail-fields"></div>
+          </div>
+
+          <div class="detail-actions">
+            <button class="btn-primary" id="detail-check-btn" onclick="checkCurrentAccount()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <span id="detail-check-label">Check Account Health</span>
+            </button>
+            <button class="btn-secondary" onclick="askSuggestion('Help me prepare for my QBR with ' + currentAccount.name)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              Prepare QBR Brief
+            </button>
+            <button class="btn-secondary" onclick="askSuggestion('What escalation steps apply to ' + currentAccount.name + ' given their contract value?')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              Escalation Guidance
+            </button>
+          </div>
+        </div>
+
+        <!-- Right: chat panel -->
+        <div class="chat-panel">
+          <div class="chat-header">
+            <div class="chat-header-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <div class="chat-header-text">
+              <div class="chat-header-title">ChurnSignal Agent</div>
+              <div class="chat-header-sub" id="chat-context-label">Ask anything about this account</div>
+            </div>
+            <button class="btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="clearChat()">Clear</button>
+          </div>
+
+          <div class="chat-messages" id="chat-messages">
+            <div class="chat-empty" id="chat-empty">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <div class="chat-empty-title">Ask ChurnSignal</div>
+              <div class="chat-empty-sub">Get AI-powered health assessments, playbook recommendations and QBR briefs</div>
+              <div class="chat-suggestions" id="chat-suggestions"></div>
+            </div>
+          </div>
+
+          <div class="chat-input-area">
+            <div class="chat-input-row">
+              <textarea
+                class="chat-input"
+                id="chat-input"
+                placeholder="Ask about account health, escalation steps, QBR prep…"
+                rows="1"
+                onkeydown="handleKey(event)"
+                oninput="autoResize(this)"
+              ></textarea>
+              <button class="send-btn" id="send-btn" onclick="sendMessage()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            </div>
+            <div class="chat-hint">Read-only agent · Cannot send emails, update CRM or approve discounts</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PLAYBOOKS DUMMY ────────────────────────────────── -->
+      <div class="view" id="view-playbooks">
+        <div class="placeholder-view">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          <h3>Playbooks</h3>
+          <p>Churn prevention playbooks — coming soon</p>
+        </div>
+      </div>
+
+      <!-- ── SETTINGS DUMMY ─────────────────────────────────── -->
+      <div class="view" id="view-settings">
+        <div class="placeholder-view">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>
+          <h3>Settings</h3>
+          <p>Configuration options — coming soon</p>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────────────
+const API = 'https://churnsignal-api.onrender.com';
+
+// ── STATE ───────────────────────────────────────────────────────────
+let allAccounts = [];
+let currentAccount = null;
+let chatHistory = [];
+let isLoading = false;
+
+// ── COLOUR MAPS ─────────────────────────────────────────────────────
+const AVATAR_COLORS = {
+  globalbank: { bg:'#dbeafe', color:'#1d4ed8' },
+  techflow:   { bg:'#d1fae5', color:'#065f46' },
+  acmecorp:   { bg:'#ede9fe', color:'#5b21b6' },
+};
+
+const RISK_ORDER = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+
+// ── INIT ────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  document.getElementById('today-date').textContent = new Date().toLocaleDateString('en-GB', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+  await loadAccounts();
+});
+
+async function loadAccounts() {
+  try {
+    const res = await fetch(`${API}/api/accounts`);
+    allAccounts = await res.json();
+    allAccounts.sort((a, b) => RISK_ORDER[a.risk] - RISK_ORDER[b.risk]);
+    renderAccountsTable(allAccounts);
+    updateSummaryCards(allAccounts);
+  } catch (e) {
+    document.getElementById('accounts-tbody').innerHTML =
+      `<tr><td colspan="8" style="text-align:center;color:#dc2626;padding:32px;">
+        ⚠️ Cannot reach ChurnSignal API. Start the backend: <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">python api.py</code>
+      </td></tr>`;
+  }
+}
+
+function updateSummaryCards(accounts) {
+  const critical = accounts.filter(a => a.risk === 'CRITICAL').length;
+  const totalArr = accounts.reduce((s, a) => s + a.arr, 0);
+  const totalTickets = accounts.reduce((s, a) => s + a.open_tickets, 0);
+  document.getElementById('count-critical').textContent = critical;
+  document.getElementById('total-arr').textContent = '$' + totalArr.toLocaleString();
+  document.getElementById('total-tickets').textContent = totalTickets;
+}
+
+function renderAccountsTable(accounts) {
+  const tbody = document.getElementById('accounts-tbody');
+  if (!accounts.length) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--slate-400);padding:32px;">No accounts found</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = accounts.map(acc => {
+    const av = AVATAR_COLORS[acc.id] || { bg:'#f1f5f9', color:'#475569' };
+    const usageClass = acc.usage_drop_pct > 50 ? 'danger' : acc.usage_drop_pct > 25 ? 'warn' : '';
+    return `
+      <tr class="account-row" onclick="openAccount('${acc.id}')">
+        <td>
+          <div class="account-cell">
+            <div class="acc-avatar" style="background:${av.bg};color:${av.color};">${acc.logo_initial}</div>
+            <div>
+              <div class="acc-name">${acc.name}</div>
+              <div class="acc-domain">${acc.domain}</div>
+            </div>
+          </div>
+        </td>
+        <td class="meta-cell">${acc.industry}</td>
+        <td class="arr-cell">${acc.arr_formatted}</td>
+        <td><span class="risk-badge ${acc.risk}"><span class="risk-dot"></span>${acc.risk}</span></td>
+        <td>${acc.open_tickets}</td>
+        <td style="font-weight:600;color:${acc.nps_score < 6 ? 'var(--risk-critical)' : acc.nps_score < 8 ? 'var(--risk-medium)' : 'var(--risk-low)'};">${acc.nps_score}</td>
+        <td style="font-weight:600;color:${acc.usage_drop_pct > 50 ? 'var(--risk-critical)' : acc.usage_drop_pct > 25 ? 'var(--risk-high)' : 'var(--risk-low)'};">${acc.usage_drop_pct}%</td>
+        <td>
+          <button class="btn-row-action" onclick="event.stopPropagation(); quickCheck('${acc.id}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Check
+          </button>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+function filterAccounts(query) {
+  const q = query.toLowerCase();
+  const filtered = allAccounts.filter(a =>
+    a.name.toLowerCase().includes(q) ||
+    a.industry.toLowerCase().includes(q) ||
+    a.domain.toLowerCase().includes(q) ||
+    a.risk.toLowerCase().includes(q)
+  );
+  renderAccountsTable(filtered);
+}
+
+// ── QUICK CHECK from table ───────────────────────────────────────────
+async function quickCheck(accountId) {
+  await openAccount(accountId);
+  await checkCurrentAccount();
+}
+
+// ── ACCOUNT DETAIL ───────────────────────────────────────────────────
+async function openAccount(accountId) {
+  try {
+    const res = await fetch(`${API}/api/accounts/${accountId}`);
+    currentAccount = await res.json();
+    showView('detail');
+    console.log('view switched');
+    console.log('chat-messages el:', document.getElementById('chat-messages'));
+    console.log('chat-empty el:', document.getElementById('chat-empty'));
+    console.log('chat-context-label el:', document.getElementById('chat-context-label'));
+    renderDetailPanel(currentAccount);
+    console.log('detail panel rendered');
+    chatHistory = [];
+    document.getElementById('chat-messages').innerHTML = '';
+    renderSuggestions(currentAccount);
+    document.getElementById('chat-empty').style.display = 'flex';
+    document.getElementById('chat-context-label').textContent = `Chatting about ${currentAccount.name}`;
+  } catch (e) {
+    console.error('openAccount error:', e);
+  }
+}
+
+function renderDetailPanel(acc) {
+  const av = AVATAR_COLORS[acc.id] || { bg:'#f1f5f9', color:'#475569' };
+
+  document.getElementById('detail-avatar').style.background = av.bg;
+  document.getElementById('detail-avatar').style.color = av.color;
+  document.getElementById('detail-avatar').textContent = acc.logo_initial;
+  document.getElementById('detail-name').textContent = acc.name;
+  document.getElementById('detail-meta').textContent = `${acc.industry} · ${acc.domain}`;
+  document.getElementById('detail-check-label').textContent = `Check ${acc.name} Health`;
+
+  const rb = document.getElementById('detail-risk-badge');
+  rb.className = `risk-badge ${acc.risk}`;
+  rb.innerHTML = `<span class="risk-dot"></span>${acc.risk} RISK`;
+
+  // Metrics grid
+  const usageDanger = acc.usage_drop_pct > 50 ? 'danger' : acc.usage_drop_pct > 25 ? 'warn' : 'good';
+  const ticketDanger = acc.open_tickets > 100 ? 'danger' : acc.open_tickets > 30 ? 'warn' : 'good';
+  const npsDanger = acc.nps_score < 5 ? 'danger' : acc.nps_score < 7 ? 'warn' : 'good';
+  const loginDanger = acc.days_since_login > 10 ? 'danger' : acc.days_since_login > 5 ? 'warn' : 'good';
+
+  document.getElementById('detail-metrics').innerHTML = `
+    <div class="metric-card">
+      <div class="metric-label">Usage Drop</div>
+      <div class="metric-value ${usageDanger}">${acc.usage_drop_pct}%</div>
+      <div class="metric-sub">vs prior period</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Open Tickets</div>
+      <div class="metric-value ${ticketDanger}">${acc.open_tickets}</div>
+      <div class="metric-sub">unresolved</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">NPS Score</div>
+      <div class="metric-value ${npsDanger}">${acc.nps_score}</div>
+      <div class="metric-sub">out of 10</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Days Since Login</div>
+      <div class="metric-value ${loginDanger}">${acc.days_since_login}</div>
+      <div class="metric-sub">days inactive</div>
+    </div>`;
+
+  document.getElementById('detail-fields').innerHTML = `
+    <div class="detail-field"><span class="field-key">Plan</span><span class="field-val">${acc.plan}</span></div>
+    <div class="detail-field"><span class="field-key">Users</span><span class="field-val">${acc.users.toLocaleString()}</span></div>
+    <div class="detail-field"><span class="field-key">ARR</span><span class="field-val">${acc.arr_formatted}</span></div>
+    <div class="detail-field"><span class="field-key">Renewal</span><span class="field-val">${acc.renewal_date}</span></div>
+    <div class="detail-field"><span class="field-key">Health Trend</span><span class="field-val" style="text-transform:capitalize;">${acc.health_trend}</span></div>
+    <div class="detail-field"><span class="field-key">CSM</span><span class="field-val">${acc.csm}</span></div>`;
+}
+
+function renderSuggestions(acc) {
+  const sugs = [
+    `Check ${acc.name} health`,
+    `Prepare QBR for ${acc.name}`,
+    `What escalation steps apply?`,
+    `Give me portfolio risk overview`,
+  ];
+  document.getElementById('chat-suggestions').innerHTML = sugs.map(s =>
+    `<button class="chat-suggestion" onclick="askSuggestion('${s}')">${s}</button>`
+  ).join('');
+}
+
+// ── CHECK ACCOUNT HEALTH ─────────────────────────────────────────────
+async function checkCurrentAccount() {
+  if (!currentAccount) return;
+  const prompt = `Check ${currentAccount.name} for me`;
+  await sendChatMessage(prompt, currentAccount.id);
+}
+
+// ── CHAT ─────────────────────────────────────────────────────────────
+async function askSuggestion(text) {
+  document.getElementById('chat-input').value = text;
+  await sendMessage();
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+async function sendMessage() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text || isLoading) return;
+  input.value = '';
+  input.style.height = 'auto';
+  await sendChatMessage(text, currentAccount ? currentAccount.id : null);
+}
+
+async function sendChatMessage(text, accountId) {
+  if (isLoading) return;
+  isLoading = true;
+
+  const empty = document.getElementById('chat-empty');
+  if (empty) empty.style.display = 'none';
+
+  const sendBtn = document.getElementById('send-btn');
+  sendBtn.disabled = true;
+
+  // Add user message
+  appendMessage('user', text);
+  chatHistory.push({ role: 'user', content: text });
+
+  // Typing indicator
+  const typingId = 'typing-' + Date.now();
+  appendTyping(typingId);
+
+  try {
+    const res = await fetch(`${API}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: text,
+        account_id: accountId,
+        history: chatHistory.slice(-6),
+      }),
+    });
+
+    const data = await res.json();
+    removeTyping(typingId);
+
+    const formatted = formatResponse(data.response);
+    appendMessage('agent', formatted, {
+      escalation: data.escalation,
+      blocked: data.blocked,
+      raw: data.response,
+    });
+
+    chatHistory.push({ role: 'assistant', content: data.response });
+
+  } catch (e) {
+    removeTyping(typingId);
+    appendMessage('agent', `⚠️ Cannot reach the ChurnSignal API. Make sure the backend is running:\n\`python api.py\`\n\nError: ${e.message}`);
+  }
+
+  isLoading = false;
+  sendBtn.disabled = false;
+  scrollChat();
+}
+
+function formatResponse(text) {
+  // Convert markdown-ish formatting to HTML
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^#{1,3}\s+(.+)$/gm, '<strong>$1</strong>')
+    .replace(/^(\d+\.\s)/gm, '$1')
+    .replace(/^[-•]\s+(.+)$/gm, '• $1')
+    .split('\n\n').map(p => p.trim()).filter(Boolean)
+    .map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+}
+
+function appendMessage(role, html, meta = {}) {
+  const msgs = document.getElementById('chat-messages');
+  const now = new Date().toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+  const initials = role === 'agent' ? '✦' : 'AS';
+
+  let extras = '';
+  if (meta.escalation && !meta.blocked) {
+    extras = `<div class="escalation-flag">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span><strong>Escalation Recommended</strong> — This account meets VP Customer Success escalation criteria.</span>
+    </div>`;
+  }
+  if (meta.blocked) {
+    extras = `<div class="blocked-flag">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+      <span><strong>Action blocked</strong> — Read-only agent. Take the action yourself in your CRM or email client.</span>
+    </div>`;
+  }
+
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.innerHTML = `
+    <div class="msg-avatar">${initials}</div>
+    <div>
+      <div class="msg-bubble">${html}${extras}</div>
+      <div class="msg-time">${now}</div>
+    </div>`;
+  msgs.appendChild(div);
+  scrollChat();
+}
+
+function appendTyping(id) {
+  const msgs = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'msg agent';
+  div.id = id;
+  div.innerHTML = `
+    <div class="msg-avatar">✦</div>
+    <div class="msg-bubble">
+      <div class="typing-indicator">
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+      </div>
+    </div>`;
+  msgs.appendChild(div);
+  scrollChat();
+}
+
+function removeTyping(id) {
+  const el = document.getElementById(id);
+  if (el) el.remove();
+}
+
+function scrollChat() {
+  const msgs = document.getElementById('chat-messages');
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function clearChat() {
+  chatHistory = [];
+  document.getElementById('chat-messages').innerHTML = '';
+  if (currentAccount) renderSuggestions(currentAccount);
+  document.getElementById('chat-empty').style.display = 'flex';
+}
+
+// ── NAVIGATION ───────────────────────────────────────────────────────
+function showView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(`view-${name}`).classList.add('active');
+  const navEl = document.getElementById(`nav-${name === 'detail' ? 'accounts' : name}`);
+  if (navEl) navEl.classList.add('active');
+}
+
+// ── AVATAR DROPDOWN ───────────────────────────────────────────────────
+function toggleDropdown() {
+  document.getElementById('avatarDropdown').classList.toggle('open');
+}
+
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.avatar-wrap')) {
+    document.getElementById('avatarDropdown').classList.remove('open');
+  }
+});
+</script>
+</body>
+</html>
