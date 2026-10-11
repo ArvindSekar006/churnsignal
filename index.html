@@ -490,6 +490,33 @@
 
     .btn-row-action:hover { background: var(--teal-100); border-color: var(--teal-300); }
 
+    /* ── ACCOUNTS LIST VIEW ──────────────────────────────────── */
+    #view-accounts {
+      flex-direction: row;
+      overflow: hidden;
+    }
+
+    .accounts-left {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    .accounts-left .page-header {
+      flex-shrink: 0;
+    }
+
+    .accounts-left .summary-row {
+      flex-shrink: 0;
+    }
+
+    .accounts-left .table-wrap {
+      flex: 1;
+      overflow-y: auto;
+    }
+
     /* ── ACCOUNT DETAIL VIEW ──────────────────────────────────── */
     #view-detail {
       flex-direction: row;
@@ -1060,6 +1087,9 @@
 
       <!-- ── ACCOUNTS LIST VIEW ─────────────────────────────── -->
       <div class="view active" id="view-accounts">
+
+        <!-- Left: accounts table -->
+        <div class="accounts-left">
         <div class="page-header">
           <div class="page-title">My Accounts</div>
           <div class="page-sub">Customer health overview · <span id="today-date"></span></div>
@@ -1117,6 +1147,59 @@
             </table>
           </div>
         </div>
+        </div><!-- end accounts-left -->
+
+        <!-- Right: portfolio chat panel -->
+        <div class="chat-panel">
+          <div class="chat-header">
+            <div class="chat-header-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <div class="chat-header-text">
+              <div class="chat-header-title">ChurnSignal Agent</div>
+              <div class="chat-header-sub" id="portfolio-context-label">Portfolio-level queries · No account required</div>
+            </div>
+            <div class="variant-selector">
+              <span class="variant-selector-label">Prompt</span>
+              <button class="variant-btn" id="pvar-btn-A" onclick="setVariant('A')">A</button>
+              <button class="variant-btn active" id="pvar-btn-B" onclick="setVariant('B')">B</button>
+              <button class="variant-btn" id="pvar-btn-C" onclick="setVariant('C')">C</button>
+            </div>
+            <button class="btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="clearPortfolioChat()">Clear</button>
+          </div>
+
+          <div class="chat-messages" id="portfolio-chat-messages">
+            <div class="chat-empty" id="portfolio-chat-empty">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <div class="chat-empty-title">Ask ChurnSignal</div>
+              <div class="chat-empty-sub">Portfolio risk ranking, cross-account queries, playbook guidance — no account selection needed</div>
+              <div class="chat-suggestions">
+                <button class="chat-suggestion" onclick="portfolioAskSuggestion('Which accounts are at risk this week?')">Which accounts are at risk this week?</button>
+                <button class="chat-suggestion" onclick="portfolioAskSuggestion('Give me a full portfolio risk overview')">Full portfolio risk overview</button>
+                <button class="chat-suggestion" onclick="portfolioAskSuggestion('What is the renewal date for RetailCo?')">RetailCo renewal date</button>
+                <button class="chat-suggestion" onclick="portfolioAskSuggestion('Which account needs the most urgent attention?')">Most urgent account?</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-input-area">
+            <div class="chat-input-row">
+              <textarea
+                class="chat-input"
+                id="portfolio-chat-input"
+                placeholder="Ask about portfolio risk, renewals, playbooks…"
+                rows="1"
+                onkeydown="handlePortfolioKey(event)"
+                oninput="autoResize(this)"
+              ></textarea>
+              <button class="send-btn" id="portfolio-send-btn" onclick="sendPortfolioMessage()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            </div>
+            <div class="chat-hint">Read-only agent · Cannot send emails, update CRM or approve discounts</div>
+          </div>
+        </div>
+
       </div>
 
       <!-- ── ACCOUNT DETAIL VIEW ────────────────────────────── -->
@@ -1251,14 +1334,26 @@ let chatHistory = [];
 let isLoading = false;
 let currentVariant = 'B';
 
+let portfolioChatHistory = [];
+
 function setVariant(v) {
   currentVariant = v;
-  ['A', 'B', 'C'].forEach(x => {
-    document.getElementById('var-btn-' + x).classList.toggle('active', x === v);
-  });
-  // Update subtitle to show active variant
   const labels = { A: 'Minimal prompt', B: 'Structured prompt (default)', C: 'Chain-of-thought prompt' };
-  document.querySelector('.chat-header-sub').textContent = 'Prompt variant ' + v + ' — ' + labels[v];
+  // Sync account detail buttons
+  ['A', 'B', 'C'].forEach(x => {
+    const btn = document.getElementById('var-btn-' + x);
+    if (btn) btn.classList.toggle('active', x === v);
+  });
+  // Sync portfolio buttons
+  ['A', 'B', 'C'].forEach(x => {
+    const btn = document.getElementById('pvar-btn-' + x);
+    if (btn) btn.classList.toggle('active', x === v);
+  });
+  // Update subtitles
+  const detailLabel = document.getElementById('chat-context-label');
+  if (detailLabel && currentAccount) detailLabel.textContent = `Chatting about ${currentAccount.name} · Prompt ${v}`;
+  const portfolioLabel = document.getElementById('portfolio-context-label');
+  if (portfolioLabel) portfolioLabel.textContent = `Portfolio-level queries · Prompt ${v} — ${labels[v]}`;
 }
 
 // ── COLOUR MAPS ─────────────────────────────────────────────────────
@@ -1597,7 +1692,9 @@ function removeTyping(id) {
 
 function scrollChat() {
   const msgs = document.getElementById('chat-messages');
-  msgs.scrollTop = msgs.scrollHeight;
+  if (msgs) msgs.scrollTop = msgs.scrollHeight;
+  const pMsgs = document.getElementById('portfolio-chat-messages');
+  if (pMsgs) pMsgs.scrollTop = pMsgs.scrollHeight;
 }
 
 function clearChat() {
@@ -1605,6 +1702,144 @@ function clearChat() {
   document.getElementById('chat-messages').innerHTML = '';
   if (currentAccount) renderSuggestions(currentAccount);
   document.getElementById('chat-empty').style.display = 'flex';
+}
+
+function clearPortfolioChat() {
+  portfolioChatHistory = [];
+  document.getElementById('portfolio-chat-messages').innerHTML = '';
+  document.getElementById('portfolio-chat-empty').style.display = 'flex';
+}
+
+function portfolioAskSuggestion(text) {
+  document.getElementById('portfolio-chat-input').value = text;
+  sendPortfolioMessage();
+}
+
+function handlePortfolioKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendPortfolioMessage();
+  }
+}
+
+async function sendPortfolioMessage() {
+  const input = document.getElementById('portfolio-chat-input');
+  const text = input.value.trim();
+  if (!text || isLoading) return;
+  input.value = '';
+  input.style.height = 'auto';
+  await sendPortfolioChatMessage(text);
+}
+
+async function sendPortfolioChatMessage(text) {
+  if (isLoading) return;
+  isLoading = true;
+
+  const empty = document.getElementById('portfolio-chat-empty');
+  if (empty) empty.style.display = 'none';
+
+  const sendBtn = document.getElementById('portfolio-send-btn');
+  sendBtn.disabled = true;
+
+  // Add user message
+  appendPortfolioMessage('user', text);
+  portfolioChatHistory.push({ role: 'user', content: text });
+
+  const typingId = 'ptyping-' + Date.now();
+  appendPortfolioTyping(typingId);
+
+  try {
+    const res = await fetch(`${API}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: text,
+        account_id: null,
+        history: portfolioChatHistory.slice(-6),
+        variant: currentVariant,
+      }),
+    });
+
+    const data = await res.json();
+    removePortfolioTyping(typingId);
+
+    const formatted = formatResponse(data.response);
+    appendPortfolioMessage('agent', formatted, {
+      escalation: data.escalation,
+      blocked: data.blocked,
+      raw: data.response,
+      variant: data.variant || currentVariant,
+    });
+
+    portfolioChatHistory.push({ role: 'assistant', content: data.response });
+
+  } catch (e) {
+    removePortfolioTyping(typingId);
+    appendPortfolioMessage('agent', `⚠️ Cannot reach the ChurnSignal API. Error: ${e.message}`);
+  }
+
+  isLoading = false;
+  sendBtn.disabled = false;
+  const msgs = document.getElementById('portfolio-chat-messages');
+  if (msgs) msgs.scrollTop = msgs.scrollHeight;
+}
+
+function appendPortfolioMessage(role, html, meta = {}) {
+  const msgs = document.getElementById('portfolio-chat-messages');
+  const now = new Date().toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+  const initials = role === 'agent' ? '✦' : 'AS';
+
+  let extras = '';
+  if (meta.escalation && !meta.blocked) {
+    extras = `<div class="escalation-flag">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span><strong>Escalation Recommended</strong> — This account meets VP Customer Success escalation criteria.</span>
+    </div>`;
+  }
+  if (meta.blocked) {
+    extras = `<div class="blocked-flag">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+      <span><strong>Action blocked</strong> — Read-only agent. Take the action yourself in your CRM or email client.</span>
+    </div>`;
+  }
+
+  const variantBadge = (role === 'agent' && meta.variant)
+    ? `<span style="display:inline-block;margin-left:8px;padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;background:var(--teal-100);color:var(--teal-700);vertical-align:middle;">Prompt ${meta.variant}</span>`
+    : '';
+
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.innerHTML = `
+    <div class="msg-avatar">${initials}</div>
+    <div>
+      <div class="msg-bubble">${html}${extras}</div>
+      <div class="msg-time">${now}${variantBadge}</div>
+    </div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function appendPortfolioTyping(id) {
+  const msgs = document.getElementById('portfolio-chat-messages');
+  const div = document.createElement('div');
+  div.className = 'msg agent';
+  div.id = id;
+  div.innerHTML = `
+    <div class="msg-avatar">✦</div>
+    <div class="msg-bubble">
+      <div class="typing-indicator">
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+      </div>
+    </div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function removePortfolioTyping(id) {
+  const el = document.getElementById(id);
+  if (el) el.remove();
 }
 
 // ── NAVIGATION ───────────────────────────────────────────────────────
