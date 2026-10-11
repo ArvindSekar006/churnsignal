@@ -3,7 +3,7 @@ ChurnSignal — FastAPI Backend
 AI Customer Health & Churn Prevention Copilot
 Arvind Sekar | Capstone Project
 
-v2: Live Supabase data + LangChain Tool Calling
+v3: Prompt variant support (A / B / C) for evaluation
 """
 
 from fastapi import FastAPI
@@ -13,7 +13,7 @@ from typing import List, Optional
 import os
 import json
 
-app = FastAPI(title="ChurnSignal API", version="2.0.0")
+app = FastAPI(title="ChurnSignal API", version="3.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -187,7 +187,13 @@ LOW RISK PLAYBOOK:
 - Consider for reference customer or case study program
 """
 
-SYSTEM_PROMPT = f"""You are ChurnSignal, an AI Customer Health & Churn Prevention Copilot for Customer Success Managers (CSMs).
+# ── PROMPT VARIANTS ────────────────────────────────────────────────────────────
+
+# Variant A — Minimal baseline prompt
+PROMPT_A = """You are a customer success assistant. Answer questions about customer accounts."""
+
+# Variant B — Structured role prompt (original / submitted version)
+PROMPT_B = f"""You are ChurnSignal, an AI Customer Health & Churn Prevention Copilot for Customer Success Managers (CSMs).
 
 You are a READ-ONLY decision support agent. You NEVER send emails, update CRMs, approve discounts, or contact customers autonomously. If asked to perform any action, refuse clearly and offer to prepare the content instead.
 
@@ -222,6 +228,51 @@ For QBR prep, provide a detailed agenda and talking points.
 For general questions, answer concisely and helpfully.
 Be direct, professional, and specific — avoid vague advice."""
 
+# Variant C — Chain-of-thought prompt with entity resolution
+PROMPT_C = f"""You are ChurnSignal, an AI Customer Success assistant for a B2B SaaS company.
+Your users are Senior Customer Success Managers (CSMs) managing a portfolio of enterprise accounts.
+
+Before responding to any query, follow these steps internally:
+
+STEP 1 — Identify the account(s) being discussed.
+  If a pronoun is used ("them", "they", "it", "that account"), resolve it to the most recently
+  explicitly named account in the conversation history. If still ambiguous, ask the user to
+  clarify before proceeding — do not guess.
+
+STEP 2 — Classify the intent:
+  [risk_triage | health_report | email_draft | data_lookup | write_request | other]
+
+STEP 3 — If intent = write_request, refuse immediately and clearly. Do not proceed further.
+  Otherwise, fetch live data using your tools and respond.
+
+Response guidelines by intent:
+  - risk_triage: rank ALL accounts by urgency. Cite health score, last login days, and open
+    ticket count per account. Never omit an account.
+  - health_report: include health score trend (current vs prior), escalation flag (YES/NO),
+    and exactly 3 specific playbook actions with timeframes.
+  - email_draft: personalise every sentence with real account metrics. Never use generic
+    templates. Reference specific data points (login gap, health score, ticket count).
+  - data_lookup: respond in one concise sentence. Do not add unsolicited risk commentary.
+  - write_request: refuse clearly. Explain you are a Decision Support agent only.
+
+CHURN PREVENTION PLAYBOOKS:
+{PLAYBOOKS}
+
+HARD CONSTRAINTS:
+  - Decision Support ONLY. You cannot write to, update, or modify any system, ever.
+  - Never fabricate data. Every claim must come from retrieved account records.
+  - If uncertain about which account is being referenced, ask for clarification.
+  - Always fetch fresh data — never rely on memory or prior responses for account metrics."""
+
+PROMPT_MAP = {
+    "A": PROMPT_A,
+    "B": PROMPT_B,
+    "C": PROMPT_C,
+}
+
+# Default is B (the submitted version)
+SYSTEM_PROMPT = PROMPT_B
+
 
 # ── SAFETY GUARDRAIL ─────────────────────────────────────────────────────────
 
@@ -240,7 +291,7 @@ SAFETY_PHRASES = [
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "service": "ChurnSignal API", "version": "2.0.0"}
+    return {"status": "ok", "service": "ChurnSignal API", "version": "3.0.0"}
 
 
 @app.get("/api/accounts")
@@ -298,6 +349,7 @@ class ChatRequest(BaseModel):
     message: str
     account_id: Optional[str] = None
     history: Optional[List[dict]] = []
+    variant: Optional[str] = "B"   # "A", "B", or "C"
 
 
 @app.post("/api/chat")
@@ -312,9 +364,13 @@ def chat(req: ChatRequest):
             temperature=0.3,
         )
 
-        # Safety guardrail — fires before LLM
+        # Select system prompt based on variant (default B)
+        variant = (req.variant or "B").upper()
+        selected_prompt = PROMPT_MAP.get(variant, PROMPT_B)
+
+        # Safety guardrail — fires before LLM (only enforce for B and C; A has no guardrail by design)
         msg_lower = req.message.lower()
-        if any(phrase in msg_lower for phrase in SAFETY_PHRASES):
+        if variant != "A" and any(phrase in msg_lower for phrase in SAFETY_PHRASES):
             return {
                 "response": (
                     "❌ **Action not permitted** — I am a read-only decision support agent.\n\n"
@@ -325,12 +381,13 @@ def chat(req: ChatRequest):
                 ),
                 "escalation": False,
                 "blocked": True,
+                "variant": variant,
             }
 
         # Build message list
         llm_with_tools = llm.bind_tools(TOOLS)
 
-        messages = [SystemMessage(content=SYSTEM_PROMPT)]
+        messages = [SystemMessage(content=selected_prompt)]
 
         # Add conversation history
         for h in (req.history or [])[-6:]:
@@ -384,6 +441,7 @@ def chat(req: ChatRequest):
             "response": final_text,
             "escalation": escalation,
             "blocked": False,
+            "variant": variant,
         }
 
     except Exception as e:
@@ -391,6 +449,7 @@ def chat(req: ChatRequest):
             "response": f"⚠️ Agent error: {str(e)}\n\nPlease check that GROQ_API_KEY, SUPABASE_URL and SUPABASE_SERVICE_KEY are set in Render environment variables.",
             "escalation": False,
             "blocked": False,
+            "variant": req.variant or "B",
         }
 
 

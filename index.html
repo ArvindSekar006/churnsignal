@@ -701,6 +701,40 @@
     .chat-header-title { font-size: 14px; font-weight: 600; color: var(--slate-900); }
     .chat-header-sub { font-size: 11px; color: var(--slate-400); }
 
+    .variant-selector {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--slate-100);
+      border-radius: 8px;
+      padding: 3px;
+    }
+    .variant-selector-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--slate-500);
+      padding: 0 6px 0 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .variant-btn {
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      font-family: var(--font);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--slate-500);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .variant-btn:hover { background: var(--slate-200); color: var(--slate-700); }
+    .variant-btn.active {
+      background: var(--teal-600);
+      color: #fff;
+    }
+
     .chat-messages {
       flex: 1;
       overflow-y: auto;
@@ -1147,6 +1181,12 @@
               <div class="chat-header-title">ChurnSignal Agent</div>
               <div class="chat-header-sub" id="chat-context-label">Ask anything about this account</div>
             </div>
+            <div class="variant-selector">
+              <span class="variant-selector-label">Prompt</span>
+              <button class="variant-btn" id="var-btn-A" onclick="setVariant('A')">A</button>
+              <button class="variant-btn active" id="var-btn-B" onclick="setVariant('B')">B</button>
+              <button class="variant-btn" id="var-btn-C" onclick="setVariant('C')">C</button>
+            </div>
             <button class="btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="clearChat()">Clear</button>
           </div>
 
@@ -1209,6 +1249,17 @@ let allAccounts = [];
 let currentAccount = null;
 let chatHistory = [];
 let isLoading = false;
+let currentVariant = 'B';
+
+function setVariant(v) {
+  currentVariant = v;
+  ['A', 'B', 'C'].forEach(x => {
+    document.getElementById('var-btn-' + x).classList.toggle('active', x === v);
+  });
+  // Update subtitle to show active variant
+  const labels = { A: 'Minimal prompt', B: 'Structured prompt (default)', C: 'Chain-of-thought prompt' };
+  document.querySelector('.chat-header-sub').textContent = 'Prompt variant ' + v + ' — ' + labels[v];
+}
 
 // ── COLOUR MAPS ─────────────────────────────────────────────────────
 const AVATAR_COLORS = {
@@ -1448,6 +1499,7 @@ async function sendChatMessage(text, accountId) {
         message: text,
         account_id: accountId,
         history: chatHistory.slice(-6),
+        variant: currentVariant,
       }),
     });
 
@@ -1459,6 +1511,7 @@ async function sendChatMessage(text, accountId) {
       escalation: data.escalation,
       blocked: data.blocked,
       raw: data.response,
+      variant: data.variant || currentVariant,
     });
 
     chatHistory.push({ role: 'assistant', content: data.response });
@@ -1503,13 +1556,17 @@ function appendMessage(role, html, meta = {}) {
     </div>`;
   }
 
+  const variantBadge = (role === 'agent' && meta.variant)
+    ? `<span style="display:inline-block;margin-left:8px;padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;background:var(--teal-100);color:var(--teal-700);vertical-align:middle;">Prompt ${meta.variant}</span>`
+    : '';
+
   const div = document.createElement('div');
   div.className = `msg ${role}`;
   div.innerHTML = `
     <div class="msg-avatar">${initials}</div>
     <div>
       <div class="msg-bubble">${html}${extras}</div>
-      <div class="msg-time">${now}</div>
+      <div class="msg-time">${now}${variantBadge}</div>
     </div>`;
   msgs.appendChild(div);
   scrollChat();
