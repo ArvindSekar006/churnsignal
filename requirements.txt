@@ -3,5 +3,6 @@ uvicorn==0.30.6
 langchain-groq==0.1.9
 langchain-core==0.2.43
 pydantic==2.7.4
-pydantic-core==2.18.4
-supabase
+supabase==2.7.4
+fastembed==0.3.6
+numpy<2

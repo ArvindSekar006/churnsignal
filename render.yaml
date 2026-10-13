@@ -2,9 +2,15 @@ services:
   - type: web
     name: churnsignal-api
     runtime: python
-    pythonVersion: "3.11.9"
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn api:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
       - key: GROQ_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
         sync: false

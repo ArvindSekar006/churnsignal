@@ -887,6 +887,11 @@
 
     .blocked-flag svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
 
+    .fb-row { display:flex; align-items:center; gap:6px; margin-top:4px; }
+    .fb-btn { border:1px solid var(--slate-200); background:#fff; border-radius:6px; padding:1px 7px; font-size:12px; cursor:pointer; }
+    .fb-btn:hover:not(:disabled) { background: var(--slate-100); }
+    .fb-btn:disabled { opacity:.5; cursor:default; }
+    .fb-note { font-size:10px; color: var(--slate-400); }
     .msg-time { font-size: 10px; color: var(--slate-400); margin-top: 4px; }
     .msg.user .msg-time { text-align: right; }
 
@@ -1331,10 +1336,48 @@ const API = 'https://churnsignal-api.onrender.com';
 let allAccounts = [];
 let currentAccount = null;
 let chatHistory = [];
+const SESSION_ID = 's' + Math.random().toString(36).slice(2, 10);
 let isLoading = false;
 let currentVariant = 'B';
 
 let portfolioChatHistory = [];
+
+
+// ── FEEDBACK (explicit signal) ───────────────────────────────────────────────
+function feedbackHtml(variant) {
+  return `<div class="fb-row" data-variant="${variant || currentVariant}">
+    <button class="fb-btn" title="Helpful" onclick="sendFeedback(this,'up')">👍</button>
+    <button class="fb-btn" title="Not helpful" onclick="sendFeedback(this,'down')">👎</button>
+    <span class="fb-note"></span>
+  </div>`;
+}
+
+async function sendFeedback(btn, rating) {
+  const row = btn.closest('.fb-row');
+  const note = row.querySelector('.fb-note');
+  let correction = '';
+  if (rating === 'down') {
+    correction = (prompt('What was wrong? (optional - used to correct later answers in this session)') || '').trim();
+  }
+  row.querySelectorAll('.fb-btn').forEach(b => b.disabled = true);
+  try {
+    const res = await fetch(`${API}/api/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_id: SESSION_ID,
+        rating,
+        variant: row.dataset.variant,
+        account_id: currentAccount ? currentAccount.id : null,
+        correction,
+      }),
+    });
+    const data = await res.json();
+    note.textContent = data.applied_to_session ? 'Thanks - correction applied to this session' : 'Thanks for the feedback';
+  } catch (e) {
+    note.textContent = 'Could not send feedback';
+  }
+}
 
 function setVariant(v) {
   currentVariant = v;
@@ -1455,12 +1498,7 @@ async function openAccount(accountId) {
     const res = await fetch(`${API}/api/accounts/${accountId}`);
     currentAccount = await res.json();
     showView('detail');
-    console.log('view switched');
-    console.log('chat-messages el:', document.getElementById('chat-messages'));
-    console.log('chat-empty el:', document.getElementById('chat-empty'));
-    console.log('chat-context-label el:', document.getElementById('chat-context-label'));
     renderDetailPanel(currentAccount);
-    console.log('detail panel rendered');
     chatHistory = [];
     document.getElementById('chat-messages').innerHTML = '';
     renderSuggestions(currentAccount);
@@ -1595,6 +1633,7 @@ async function sendChatMessage(text, accountId) {
         account_id: accountId,
         history: chatHistory.slice(-6),
         variant: currentVariant,
+        session_id: SESSION_ID,
       }),
     });
 
@@ -1662,6 +1701,7 @@ function appendMessage(role, html, meta = {}) {
     <div>
       <div class="msg-bubble">${html}${extras}</div>
       <div class="msg-time">${now}${variantBadge}</div>
+      ${role === 'agent' && !meta.blocked && meta.raw ? feedbackHtml(meta.variant) : ''}
     </div>`;
   msgs.appendChild(div);
   scrollChat();
@@ -1757,6 +1797,7 @@ async function sendPortfolioChatMessage(text) {
         account_id: null,
         history: portfolioChatHistory.slice(-6),
         variant: currentVariant,
+        session_id: SESSION_ID,
       }),
     });
 
@@ -1814,6 +1855,7 @@ function appendPortfolioMessage(role, html, meta = {}) {
     <div>
       <div class="msg-bubble">${html}${extras}</div>
       <div class="msg-time">${now}${variantBadge}</div>
+      ${role === 'agent' && !meta.blocked && meta.raw ? feedbackHtml(meta.variant) : ''}
     </div>`;
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
