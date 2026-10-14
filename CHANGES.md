@@ -24,3 +24,6 @@ Variant prompts: B/C text unchanged except playbook block -> retrieval instructi
 - EMAIL_RULES: customer email must not contain health score, risk, escalation, playbook names, MRR/ARR; renewal mentioned only if future; every placeholder listed in NOTE TO CSM. Removed the conflicting "personalise with metrics" line from Prompt C.
 - ESCALATION_RULE (B and C): escalation YES only when playbook criteria are met (CRITICAL + >=$50K, competitor mentioned, future renewal within 60 days with HIGH/CRITICAL). Inactivity alone is not escalation. Fixes the same HIGH account getting YES on one run and NO on another.
 - Today's date is injected into the B/C system prompt so past renewal dates are not described as upcoming.
+
+## v4.2.1
+- with_date_status(): renewal and contract-end dates returned by get_account_info, list_all_accounts and get_renewal_info now carry <key>_status (PAST/UPCOMING) and <key>_days_from_today, computed in code. The model reads the status instead of comparing dates (it mislabelled 2025-08-15 as "future" in the v4.2 email test).

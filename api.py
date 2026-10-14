@@ -168,8 +168,29 @@ def risk_from_score(health_score: int) -> str:
     return "LOW"
 
 
+DATE_KEY_HINTS = ("renewal", "contract_end")
+
+
+def with_date_status(row: dict) -> dict:
+    """For renewal/contract dates, attach <key>_status (PAST/UPCOMING) and <key>_days_from_today
+    so the model reads the comparison instead of doing date maths itself."""
+    out = dict(row)
+    today = date.today()
+    for k, v in row.items():
+        if isinstance(v, str) and any(h in k.lower() for h in DATE_KEY_HINTS):
+            try:
+                d = date.fromisoformat(v[:10])
+            except ValueError:
+                continue
+            delta = (d - today).days
+            out[f"{k}_days_from_today"] = delta
+            out[f"{k}_status"] = "PAST" if delta < 0 else "UPCOMING"
+    return out
+
+
 def with_risk(account: dict) -> dict:
     """Attach the platform's own risk_level so the model never re-judges it."""
+    account = with_date_status(account)
     score = account.get("health_score")
     if isinstance(score, (int, float)):
         account = {**account, "risk_level": risk_from_score(score)}
@@ -283,7 +304,9 @@ def _query_by_account(table: str, account_id: str, label: str, *, single=False, 
         res = q.execute()
         if not res.data:
             return f"No {label} found for '{slug}'"
-        return json.dumps(res.data[0] if single else res.data)
+        if single:
+            return json.dumps(with_date_status(res.data[0]))
+        return json.dumps(res.data)
     except Exception as e:
         return f"Error fetching {label}: {e}"
 
@@ -380,7 +403,7 @@ the draft (customer name, contact email, sign-off), and any date in the records 
 **DRAFT EMAIL:** addressed to the customer. It is a warm, short check-in: ask how things are going,
 offer help, suggest a brief call. NEVER include in it: health score, risk level, escalation status,
 playbook names, other accounts, internal tools, discrepancies, MRR/ARR or other billing figures, or
-any inactivity count worded as a warning. Mention a renewal only if its date is in the future.
+any inactivity count worded as a warning. Mention a renewal only if its *_status is UPCOMING.
 NEVER invent availability, times, dates, discounts or offers. Use a name only if it is in the records;
 otherwise use ONE bracketed placeholder per missing name (e.g. [Customer Name], [Your Name]) and list
 each one in the NOTE TO CSM. This email rule overrides any instruction to personalise with metrics."""
@@ -399,7 +422,7 @@ ESCALATION_RULE = """ESCALATION FLAG: set YES only if the escalation criteria in
 (a) risk_level CRITICAL and contract value >= $50K; (b) a competitor is mentioned in a ticket or call;
 (c) the renewal date is in the FUTURE and within 60 days of today and risk_level is HIGH or CRITICAL.
 Inactivity of more than 14 days alone means same-day CSM outreach, NOT escalation. A HIGH account that
-meets none of (a)-(c) is NO. A renewal date earlier than today is past: do not call it "upcoming" or
+meets none of (a)-(c) is NO. Date fields come with a *_status (PAST/UPCOMING) and *_days_from_today; trust them. A PAST date: do not call it "upcoming" or
 "within 60 days"; say the record shows a past date that needs updating. Be consistent: the same data
 must always give the same flag."""
 
