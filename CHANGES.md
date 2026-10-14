@@ -12,3 +12,10 @@
 
 Variant prompts: B/C text unchanged except playbook block -> retrieval instruction; C adds `advisory_action` intent
 (fixes the Q5 false-positive). Re-run the 5 test queries and record before/after in the report.
+
+## v4.1 (after the B/C evaluation round)
+- Email drafts now use a fixed layout: NOTE TO CSM (internal: account mismatch, stated-vs-record differences, blank fields) + DRAFT EMAIL (customer-facing, facts from records only, no invented availability/offers). Fixes the feedback-demo finding where internal notes leaked into the email.
+- `risk_level` computed by the platform is attached to account data and the prompts require using it (fixes MEDIUM-vs-HIGH mismatch seen in Q5).
+- CSM corrections are injected as a user-turn instruction instead of a system-prompt suffix (stronger effect).
+- Escalation banner text no longer claims VP-level criteria.
+- Account scope: when the CSM is on one account's page and asks about another, the model (not a hard-coded rule) is told via a context-conflict note + ACCOUNT SCOPE prompt rule to stop, say which account the page is on vs. asked about, and ask the CSM to confirm.

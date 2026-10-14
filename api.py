@@ -141,8 +141,8 @@ def register_notice(reg: dict) -> str:
     if reg["conflict"]:
         sel, named = reg["conflict"]
         lines.append(
-            f"[Context conflict: the CSM is viewing '{sel}' but their message names '{named}'. "
-            f"The message wins: answer about '{named}' and say which account you used.]"
+            f"[Context conflict: the CSM is viewing the '{sel}' page but their message is about '{named}'. "
+            f"Apply the ACCOUNT SCOPE rule.]"
         )
     if reg["last_named"]:
         lines.append(
@@ -165,6 +165,14 @@ def risk_from_score(health_score: int) -> str:
     if health_score < 70:
         return "MEDIUM"
     return "LOW"
+
+
+def with_risk(account: dict) -> dict:
+    """Attach the platform's own risk_level so the model never re-judges it."""
+    score = account.get("health_score")
+    if isinstance(score, (int, float)):
+        account = {**account, "risk_level": risk_from_score(score)}
+    return account
 
 
 # ── PLAYBOOKS & RAG ───────────────────────────────────────────────────────────
@@ -289,7 +297,7 @@ def get_account_info(account_id: str) -> str:
         res = get_supabase().table("accounts").select("*").eq("id", slug).execute()
         if not res.data:
             return f"No account found with id '{slug}'"
-        return json.dumps(res.data[0])
+        return json.dumps(with_risk(res.data[0]))
     except Exception as e:
         return f"Error fetching account info: {e}"
 
@@ -331,7 +339,7 @@ def list_all_accounts() -> str:
         res = get_supabase().table("accounts").select("*").execute()
         if not res.data:
             return "No accounts found"
-        return json.dumps(res.data)
+        return json.dumps([with_risk(a) for a in res.data])
     except Exception as e:
         return f"Error listing accounts: {e}"
 
@@ -364,6 +372,25 @@ TOOL_MAP = {t.name: t for t in TOOLS}
 
 # ── PROMPT VARIANTS ────────────────────────────────────────────────────────────
 
+EMAIL_RULES = """EMAIL DRAFTS (always use exactly this two-part layout):
+**NOTE TO CSM:** (internal, never sent to the customer) mention: any fact in the CSM's message that
+differs from the records (e.g. "you said 18 days, the records show 5"), and a list of fields left blank
+because the records do not contain them.
+**DRAFT EMAIL:** addressed to the customer. Use only facts from the retrieved records. NEVER mention
+internal systems, other accounts, tools, or discrepancies. NEVER invent availability, times, dates,
+discounts or offers. Use a contact or sign-off name only if it is in the records; otherwise use ONE
+bracketed placeholder such as [Your Name] and list it in the NOTE TO CSM."""
+
+SCOPE_RULE = """ACCOUNT SCOPE: the CSM may be viewing one account's page while asking about another. When a
+[Context conflict] note is present, do NOT draft, report on or recommend anything for either account.
+Reply in one or two sentences: say which account the page is on and which one they asked about, and ask
+them to confirm or open the right account (or use the All Accounts chat). Only proceed if the CSM clearly
+means a cross-account question, such as comparing the two accounts."""
+
+RISK_RULE = """RISK LEVELS: account data includes a risk_level field computed by the platform
+(CRITICAL < 30, HIGH < 50, MEDIUM < 70, LOW otherwise). Always use that exact risk_level; do not
+re-judge it. Choose the playbook that matches it."""
+
 PLAYBOOK_INSTRUCTION = f"""PLAYBOOKS: the playbook library is retrieved on demand. Call get_playbook with a short
 description of the account's situation BEFORE recommending actions, and base your actions on the
 steps it returns. Cite the playbook name it returns. Playbooks available:
@@ -382,6 +409,12 @@ You have access to live Supabase tools to fetch real account data. Use them to a
 Available accounts: globalbank, techstartup, retailco
 
 {PLAYBOOK_INSTRUCTION}
+
+{SCOPE_RULE}
+
+{RISK_RULE}
+
+{EMAIL_RULES}
 
 RESPONSE FORMAT for health checks and recommendations:
 **RISK LEVEL:** [CRITICAL / HIGH / MEDIUM / LOW]
@@ -439,6 +472,12 @@ Response guidelines by intent:
   - write_request: refuse clearly. Explain you are a Decision Support agent only.
 
 {PLAYBOOK_INSTRUCTION}
+
+{SCOPE_RULE}
+
+{RISK_RULE}
+
+{EMAIL_RULES}
 
 HARD CONSTRAINTS:
   - Decision Support ONLY. You cannot write to, update, or modify any system, ever.
@@ -508,8 +547,8 @@ def corrections_notice(session_id: Optional[str]) -> str:
         return ""
     joined = "\n".join(f"- {n}" for n in notes)
     return (
-        "\n\nCSM FEEDBACK EARLIER IN THIS SESSION (apply it to your answer, "
-        "do not repeat the mistakes described):\n" + joined
+        "[The CSM corrected you earlier in this session. Apply these corrections to this answer "
+        "and do not repeat the mistakes:\n" + joined + "]"
     )
 
 
@@ -636,7 +675,7 @@ def run_agent(req: ChatRequest, variant: str, trace: dict) -> str:
     )
     llm_with_tools = llm.bind_tools(TOOLS)
 
-    system_text = PROMPT_MAP.get(variant, PROMPT_B) + corrections_notice(req.session_id)
+    system_text = PROMPT_MAP.get(variant, PROMPT_B)
     messages = [SystemMessage(content=system_text)]
 
     history = req.history or []
@@ -658,6 +697,9 @@ def run_agent(req: ChatRequest, variant: str, trace: dict) -> str:
             user_message = f"{notice}\n{req.message}"
     elif req.account_id:
         user_message = f"[Account context: {req.account_id}]\n{req.message}"
+    correction_block = corrections_notice(req.session_id)
+    if correction_block:
+        user_message = f"{correction_block}\n\n{user_message}"
     messages.append(HumanMessage(content=user_message))
 
     response = None
