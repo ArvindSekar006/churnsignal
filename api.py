@@ -20,6 +20,7 @@ import os
 import re
 import time
 from collections import deque
+from datetime import date
 from typing import List, Optional
 
 from fastapi import FastAPI
@@ -374,12 +375,15 @@ TOOL_MAP = {t.name: t for t in TOOLS}
 
 EMAIL_RULES = """EMAIL DRAFTS (always use exactly this two-part layout):
 **NOTE TO CSM:** (internal, never sent to the customer) mention: any fact in the CSM's message that
-differs from the records (e.g. "you said 18 days, the records show 5"), and a list of fields left blank
-because the records do not contain them.
-**DRAFT EMAIL:** addressed to the customer. Use only facts from the retrieved records. NEVER mention
-internal systems, other accounts, tools, or discrepancies. NEVER invent availability, times, dates,
-discounts or offers. Use a contact or sign-off name only if it is in the records; otherwise use ONE
-bracketed placeholder such as [Your Name] and list it in the NOTE TO CSM."""
+differs from the records (e.g. "you said 18 days, the records show 5"), every blank or placeholder in
+the draft (customer name, contact email, sign-off), and any date in the records that is already past.
+**DRAFT EMAIL:** addressed to the customer. It is a warm, short check-in: ask how things are going,
+offer help, suggest a brief call. NEVER include in it: health score, risk level, escalation status,
+playbook names, other accounts, internal tools, discrepancies, MRR/ARR or other billing figures, or
+any inactivity count worded as a warning. Mention a renewal only if its date is in the future.
+NEVER invent availability, times, dates, discounts or offers. Use a name only if it is in the records;
+otherwise use ONE bracketed placeholder per missing name (e.g. [Customer Name], [Your Name]) and list
+each one in the NOTE TO CSM. This email rule overrides any instruction to personalise with metrics."""
 
 SCOPE_RULE = """ACCOUNT SCOPE: the CSM may be viewing one account's page while asking about another. When a
 [Context conflict] note is present, do NOT draft, report on or recommend anything for either account.
@@ -390,6 +394,14 @@ means a cross-account question, such as comparing the two accounts."""
 RISK_RULE = """RISK LEVELS: account data includes a risk_level field computed by the platform
 (CRITICAL < 30, HIGH < 50, MEDIUM < 70, LOW otherwise). Always use that exact risk_level; do not
 re-judge it. Choose the playbook that matches it."""
+
+ESCALATION_RULE = """ESCALATION FLAG: set YES only if the escalation criteria in the playbook library are met:
+(a) risk_level CRITICAL and contract value >= $50K; (b) a competitor is mentioned in a ticket or call;
+(c) the renewal date is in the FUTURE and within 60 days of today and risk_level is HIGH or CRITICAL.
+Inactivity of more than 14 days alone means same-day CSM outreach, NOT escalation. A HIGH account that
+meets none of (a)-(c) is NO. A renewal date earlier than today is past: do not call it "upcoming" or
+"within 60 days"; say the record shows a past date that needs updating. Be consistent: the same data
+must always give the same flag."""
 
 PLAYBOOK_INSTRUCTION = f"""PLAYBOOKS: the playbook library is retrieved on demand. Call get_playbook with a short
 description of the account's situation BEFORE recommending actions, and base your actions on the
@@ -413,6 +425,8 @@ Available accounts: globalbank, techstartup, retailco
 {SCOPE_RULE}
 
 {RISK_RULE}
+
+{ESCALATION_RULE}
 
 {EMAIL_RULES}
 
@@ -465,8 +479,8 @@ Response guidelines by intent:
     ticket count per account. Never omit an account.
   - health_report: include health score trend (current vs prior), escalation flag (YES/NO),
     and exactly 3 specific playbook actions with timeframes.
-  - email_draft: personalise every sentence with real account metrics. Never use generic
-    templates. Reference specific data points (login gap, health score, ticket count).
+  - email_draft: follow the EMAIL DRAFTS rules below exactly. Personalise with the account's name
+    and open support topics only; never put internal metrics (health score, risk, billing) in the email.
   - data_lookup: respond in one concise sentence. Do not add unsolicited risk commentary.
   - advisory_action: fetch the account's data, then give the playbook-based next steps.
   - write_request: refuse clearly. Explain you are a Decision Support agent only.
@@ -476,6 +490,8 @@ Response guidelines by intent:
 {SCOPE_RULE}
 
 {RISK_RULE}
+
+{ESCALATION_RULE}
 
 {EMAIL_RULES}
 
@@ -676,6 +692,8 @@ def run_agent(req: ChatRequest, variant: str, trace: dict) -> str:
     llm_with_tools = llm.bind_tools(TOOLS)
 
     system_text = PROMPT_MAP.get(variant, PROMPT_B)
+    if variant != "A":
+        system_text += f"\n\nToday's date: {date.today().isoformat()}."
     messages = [SystemMessage(content=system_text)]
 
     history = req.history or []

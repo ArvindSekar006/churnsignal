@@ -19,3 +19,8 @@ Variant prompts: B/C text unchanged except playbook block -> retrieval instructi
 - CSM corrections are injected as a user-turn instruction instead of a system-prompt suffix (stronger effect).
 - Escalation banner text no longer claims VP-level criteria.
 - Account scope: when the CSM is on one account's page and asks about another, the model (not a hard-coded rule) is told via a context-conflict note + ACCOUNT SCOPE prompt rule to stop, say which account the page is on vs. asked about, and ask the CSM to confirm.
+
+## v4.2 (prompt fixes from the v4.1 evaluation)
+- EMAIL_RULES: customer email must not contain health score, risk, escalation, playbook names, MRR/ARR; renewal mentioned only if future; every placeholder listed in NOTE TO CSM. Removed the conflicting "personalise with metrics" line from Prompt C.
+- ESCALATION_RULE (B and C): escalation YES only when playbook criteria are met (CRITICAL + >=$50K, competitor mentioned, future renewal within 60 days with HIGH/CRITICAL). Inactivity alone is not escalation. Fixes the same HIGH account getting YES on one run and NO on another.
+- Today's date is injected into the B/C system prompt so past renewal dates are not described as upcoming.
